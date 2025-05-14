@@ -617,52 +617,6 @@ with gr.Blocks() as demo:
             fn=delete_voice_model, inputs=[voice_models_list], outputs=[delete_status]
         ).then(fn=refresh_voice_models, inputs=[], outputs=[voice_models_list])
 
-    with gr.Tab("Hello TTS"):
-        with gr.Row():
-            play_btn = gr.Button("Play Hello Message")
-            audio_output = gr.Audio(label="TTS Output", type="filepath")
-
-        # Use the old method since gr.on has linter issues
-        play_btn.click(fn=tts_call, outputs=audio_output)
-
-    with gr.Tab("Transcription"):
-        with gr.Row():
-            with gr.Column():
-                audio_input = gr.Audio(
-                    label="Record or Upload Audio",
-                    sources=["microphone", "upload"],
-                    type="filepath",
-                    waveform_options={"show_controls": True},  # Show playback controls
-                    format="mp3"  # Ensure consistent format
-                )
-
-                transcribe_button = gr.Button("Transcribe")
-
-                transcript_output = gr.Textbox(
-                    label="Transcription Result",
-                    lines=5,
-                    placeholder="Transcription will appear here...",
-                )
-
-                download_button = gr.Button("Download Transcript")
-
-                # Hidden field to store transcript file path
-                transcript_file = gr.Textbox(visible=False)
-
-                transcript_download = gr.File(label="Download", visible=False)
-
-        # Connect the buttons to their functions
-        transcribe_button.click(
-            fn=transcribe_audio,
-            inputs=[audio_input],
-            outputs=[transcript_output, transcript_file],
-        )
-
-        download_button.click(
-            fn=download_transcript,
-            inputs=[transcript_output, transcript_file],
-            outputs=[transcript_download],
-        )
 
 # Launch the app
 if __name__ == "__main__":
@@ -678,5 +632,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error launching Gradio: {str(e)}")
         import traceback
-
         traceback.print_exc()
