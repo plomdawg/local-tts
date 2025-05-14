@@ -4,9 +4,10 @@ desktop.ini
 
 # Ignore python files
 **/*.pyc
-.mypy/
+.mypy_cache/
 
 # Ignore user-generated files
 transcripts/
 uploads/
 models/
+audio/
