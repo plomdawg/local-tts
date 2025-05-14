@@ -550,6 +550,10 @@ with gr.Blocks() as demo:
 
                 play_sample_btn = gr.Button("Play Sample")
                 sample_audio = gr.Audio(label="Sample Audio", type="filepath")
+                
+                # Add delete button
+                delete_model_btn = gr.Button("Delete Voice Model", variant="stop")
+                delete_status = gr.Textbox(label="Status", value="", interactive=False)
 
         # Function to refresh voice models
         def refresh_voice_models():
@@ -582,6 +586,32 @@ with gr.Blocks() as demo:
 
             except Exception as e:
                 return {"error": f"Error getting voice model info: {str(e)}"}
+        
+        # Function to delete voice model
+        def delete_voice_model(model_name):
+            if not model_name:
+                return "Please select a voice model to delete."
+            
+            if model_name == "default":
+                return "Cannot delete the default voice model."
+            
+            try:
+                # Call the delete endpoint
+                response = requests.delete(f"http://localhost:8000/voices/{model_name}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    files_deleted = result.get("files_deleted", False)
+                    if files_deleted:
+                        return f"✅ Voice model '{model_name}' and associated files deleted successfully."
+                    else:
+                        return f"✅ Voice model '{model_name}' removed from configuration. Some files may remain on disk."
+                else:
+                    return f"❌ Error deleting voice model: {response.status_code} - {response.text}"
+            
+            except Exception as e:
+                return f"❌ Error deleting voice model: {str(e)}"
 
         # Connect the refresh button
         refresh_models_btn.click(
@@ -591,6 +621,17 @@ with gr.Blocks() as demo:
         # Connect the voice model dropdown
         voice_models_list.change(
             fn=get_voice_model_info, inputs=[voice_models_list], outputs=[model_info]
+        )
+        
+        # Connect the delete button
+        delete_model_btn.click(
+            fn=delete_voice_model, 
+            inputs=[voice_models_list], 
+            outputs=[delete_status]
+        ).then(
+            fn=refresh_voice_models,
+            inputs=[],
+            outputs=[voice_models_list]
         )
 
         # TODO: Implement function to play a sample of the selected voice

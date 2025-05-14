@@ -49,7 +49,9 @@ The milestone will be considered complete when:
 - Users can record audio directly in the browser OR upload an audio file
 - The system successfully transcribes the audio
 - Both the audio file and transcript are saved to the filesystem
-- The transcript is displayed to the user 
+- The transcript is displayed to the user immediately
+- The transcript is displayed in the voice model editor/viewer page
+- [x] Models can be deleted from the model edit/view page
 
 # Next Steps: Milestone 3 - Custom TTS
 

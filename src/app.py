@@ -34,6 +34,7 @@ try:
         get_preset,
         create_default_config,
         add_voice_model,
+        remove_voice_model,
     )
 except ImportError as e:
     print(f"Error importing model_manager: {e}")
@@ -470,6 +471,67 @@ async def list_voice_presets():
             "success": True,
             "presets": []
         })
+
+
+@app.delete("/voices/{voice_name}")
+async def delete_voice_model(voice_name: str):
+    """
+    Delete a voice model
+    """
+    try:
+        # Check if the voice model exists
+        from model_manager import remove_voice_model, get_voice_model_info
+        
+        # Get information about the voice model first
+        voice_info = get_voice_model_info(voice_name)
+        
+        if not voice_info:
+            raise HTTPException(
+                status_code=404, detail=f"Voice model '{voice_name}' not found"
+            )
+        
+        if voice_name == "default":
+            raise HTTPException(
+                status_code=403, detail="Cannot delete the default voice model"
+            )
+        
+        # Get model directory path if available
+        model_dir = None
+        if voice_info.get("voice_path"):
+            voice_path = Path(voice_info["voice_path"])
+            if voice_path.exists() and voice_path.is_file():
+                model_dir = voice_path.parent
+        
+        # Remove the model from the configuration
+        success = remove_voice_model(voice_name)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to remove voice model '{voice_name}'"
+            )
+        
+        # Also try to delete the model files if possible
+        files_deleted = False
+        if model_dir and model_dir.exists() and model_dir.is_dir():
+            try:
+                import shutil
+                shutil.rmtree(model_dir)
+                files_deleted = True
+            except Exception as e:
+                print(f"Warning: Could not delete model directory: {e}")
+        
+        return JSONResponse({
+            "success": True,
+            "message": f"Voice model '{voice_name}' deleted successfully",
+            "files_deleted": files_deleted
+        })
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        print(f"Error deleting voice model: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting voice model: {str(e)}")
 
 
 if __name__ == "__main__":
