@@ -66,6 +66,7 @@ def get_voice_model_info(voice_name):
             "name": voice_name,
             "description": f"Voice model for {voice_name}",
             "voice_path": str(mp3_path),
+            "transcript_path": str(txt_path),
             "default_settings": {"speed": 1.0, "pitch": 0.0},
         }
 

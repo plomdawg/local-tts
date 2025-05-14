@@ -3,13 +3,16 @@ import uuid
 import time
 import hashlib
 from datetime import datetime
+import io
+import traceback
+import sys
 from pathlib import Path
-from typing import List, Optional
-import json
-
-from fastapi import FastAPI, Response, UploadFile, File, HTTPException, Query
+from typing import Optional
+from fastapi import FastAPI, Response, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+import gradio_client
+from gradio_client.utils import handle_file
 
 # Comment these out if having issues with their installation
 try:
@@ -19,12 +22,6 @@ except ImportError:
         "Warning: faster-whisper not installed. Transcription features will be disabled."
     )
     WhisperModel = None
-
-try:
-    import fish_audio_sdk.tts as fish_tts
-except ImportError:
-    print("Warning: fish_audio_sdk not installed. TTS features will be disabled.")
-    fish_tts = None
 
 # Import model manager utilities
 from model_manager import (
@@ -61,22 +58,20 @@ if WhisperModel:
         print(f"Warning: Failed to initialize whisper model: {e}")
         print("Transcription functionality will be unavailable until model is loaded.")
 
-# Initialize Fish Speech TTS
-tts_model = None
-if fish_tts:
-    try:
-        tts_model = fish_tts.load_model()
-    except Exception as e:
-        print(f"Warning: Failed to initialize Fish Speech TTS model: {e}")
-        print("TTS functionality will be unavailable until model is loaded.")
-
+# Initialize Gradio Client for Fish Speech TTS
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+gradio = gradio_client.Client("http://127.0.0.1:7860")
 
 class TTSRequest(BaseModel):
     text: str
     voice: str = "default"  # Default voice
     speed: float = Field(1.0, ge=0.5, le=2.0)  # Speech speed multiplier
     pitch: float = Field(0.0, ge=-10.0, le=10.0)  # Pitch adjustment
-    use_cache: bool = True  # Whether to use cached audio files
+    use_cache: bool = False  # Whether to use cached audio files
+    temperature: float = Field(0.7, ge=0.1, le=1.0)  # Generation temperature
+    top_p: float = Field(0.7, ge=0.1, le=1.0)  # Top-p sampling
+    repetition_penalty: float = Field(1.2, ge=1.0, le=2.0)  # Repetition penalty
+    seed: int = 0  # Random seed
 
 
 class VoiceInfo(BaseModel):
@@ -197,15 +192,13 @@ async def transcribe_audio(file: UploadFile = File(...)):
 @app.post("/synthesize")
 async def synthesize_speech(request: TTSRequest):
     """
-    Generate speech from text using Fish Speech AI
+    Generate speech from text using Fish Speech AI via Gradio API
     """
-    if not tts_model or not fish_tts:
-        raise HTTPException(status_code=503, detail="TTS service is not available")
 
     try:
         # Generate a unique cache key based on the request parameters
         cache_key = hashlib.md5(
-            f"{request.text}_{request.voice}_{request.speed}_{request.pitch}".encode()
+            f"{request.text}_{request.voice}_{request.speed}_{request.pitch}_{request.temperature}_{request.top_p}_{request.repetition_penalty}_{request.seed}".encode()
         ).hexdigest()
 
         # Check cache if enabled
@@ -239,26 +232,148 @@ async def synthesize_speech(request: TTSRequest):
         start_time = time.time()
 
         # Apply voice selection if available
-        voice_path = None
+        reference_audio = None
+        reference_text = ""
+
         if request.voice != "default":
             voice_info = get_voice_model_info(request.voice)
             if voice_info and voice_info.get("voice_path"):
+                # Use handle_file from gradio_client.utils to properly handle file paths
                 voice_path = voice_info["voice_path"]
+                print(f"Using voice model file: {voice_path}")
+
+                # For Fish Speech, we need to handle audio files without using handle_file
+                # Let's pass the raw file path instead
+                reference_audio = voice_path
+
+                # Get reference text if available
+                if voice_info.get("transcript_path") and os.path.exists(
+                    voice_info.get("transcript_path")
+                ):
+                    with open(
+                        voice_info.get("transcript_path"), "r", encoding="utf-8"
+                    ) as f:
+                        reference_text = f.read()
+                    print(f"Using transcript from: {voice_info.get('transcript_path')}")
+                    print(
+                        f"Transcript content (first 100 chars): {reference_text[:100]}..."
+                    )
+                else:
+                    # If transcript_path is not provided in voice_info, use the default path
+                    default_txt_path = (
+                        os.path.splitext(voice_info["voice_path"])[0] + ".txt"
+                    )
+                    if os.path.exists(default_txt_path):
+                        with open(default_txt_path, "r", encoding="utf-8") as f:
+                            reference_text = f.read()
+                        print(f"Using transcript from default path: {default_txt_path}")
+                        print(
+                            f"Transcript content (first 100 chars): {reference_text[:100]}..."
+                        )
+                    else:
+                        print(
+                            f"Warning: No transcript found for voice model '{request.voice}'"
+                        )
             else:
                 print(f"Warning: Voice model '{request.voice}' not found")
 
-        # Generate speech with Fish Speech TTS
-        speech_data = fish_tts.text_to_speech(
-            text=request.text,
-            model=tts_model,
-            voice_preset=voice_path,
-            speed=request.speed,
-            pitch_shift=request.pitch,
-        )
+        # Print all parameters being sent to Gradio for debugging
+        print("\nSending to Gradio API:")
+        print(f"- text: {request.text[:50]}...")
+        print(f"- reference_id: {request.voice}")
+        print(f"- reference_audio: {reference_audio}")
+        print(f"- reference_text length: {len(reference_text)} chars")
+        print(f"- temperature: {request.temperature}")
+        print(f"- top_p: {request.top_p}")
+        print(f"- repetition_penalty: {request.repetition_penalty}")
+        print(f"- seed: {request.seed}")
 
-        # Save the generated audio
-        with open(audio_output_path, "wb") as f:
-            f.write(speech_data)
+        # Call Gradio API to generate speech
+        if request.voice == "default":
+            # For default voice, use the normal API call
+            result = gradio.predict(
+                text=request.text,
+                reference_id=request.text,
+                reference_audio=None,
+                reference_text="",
+                max_new_tokens=0,
+                chunk_length=200,
+                top_p=request.top_p,
+                repetition_penalty=request.repetition_penalty,
+                temperature=request.temperature,
+                seed=request.seed,
+                use_memory_cache="off",
+                api_name="/partial",
+            )
+        else:
+            # For custom voice, try a different approach
+            # Fish Speech may expect reference_audio in a different format
+            print("Using custom voice call pattern...")
+
+            # Try with absolute path that Gradio can access directly
+            if reference_audio:
+                abs_audio_path = os.path.abspath(reference_audio)
+                print(f"Using absolute audio path: {abs_audio_path}")
+
+                # Also try reading the file as binary data
+                try:
+                    with open(abs_audio_path, "rb") as f:
+                        audio_data = f.read()
+                        print(f"Read audio file: {len(audio_data)} bytes")
+                except Exception as read_err:
+                    print(f"Error reading audio file: {read_err}")
+                    audio_data = None
+            else:
+                abs_audio_path = None
+                audio_data = None
+                print("Warning: No reference_audio path available")
+
+            try:
+                # Try using handle_file to process the audio file
+                if abs_audio_path and os.path.exists(abs_audio_path):
+                    processed_audio = handle_file(abs_audio_path)
+                    print(f"Processed audio with handle_file: {type(processed_audio)}")
+                else:
+                    processed_audio = None
+
+                result = gradio.predict(
+                    text=request.text,
+                    reference_id=request.text,
+                    reference_audio=processed_audio,
+                    reference_text=reference_text,
+                    max_new_tokens=0,
+                    chunk_length=200,
+                    top_p=request.top_p,
+                    repetition_penalty=request.repetition_penalty,
+                    temperature=request.temperature,
+                    seed=request.seed,
+                    use_memory_cache="off",
+                    api_name="/partial",
+                )
+            except Exception as err:
+                raise Exception(f"Unexpected error with Gradio predict: {err}")
+
+        # Save the result to file
+        if isinstance(result, str):
+            # If the result is a file path, copy it to our destination
+            if os.path.exists(result):
+                with open(result, "rb") as src_file:
+                    with open(audio_output_path, "wb") as dest_file:
+                        dest_file.write(src_file.read())
+            else:
+                # Try to interpret as base64 or other format if needed
+                raise Exception(f"Unexpected result format: {result}")
+        elif isinstance(result, tuple) and len(result) > 0:
+            # Some Gradio clients return a tuple with the file path as first element
+            first_item = result[0]
+            if isinstance(first_item, str) and os.path.exists(first_item):
+                with open(first_item, "rb") as src_file:
+                    with open(audio_output_path, "wb") as dest_file:
+                        dest_file.write(src_file.read())
+            else:
+                raise Exception(f"Unexpected result format: {result}")
+        else:
+            raise Exception(f"Unexpected result format: {result}")
 
         processing_time = time.time() - start_time
 
@@ -275,8 +390,18 @@ async def synthesize_speech(request: TTSRequest):
 
     except Exception as e:
         print(f"Speech synthesis error: {e}")
+        error_traceback = traceback.format_exc()
+        print(f"Detailed error: {error_traceback}")
+
+        # Include voice information in the error
+        voice_debug_info = ""
+        if request.voice != "default":
+            voice_info = get_voice_model_info(request.voice)
+            voice_debug_info = f", Voice info: {voice_info}"
+
         raise HTTPException(
-            status_code=500, detail=f"Speech synthesis failed: {str(e)}"
+            status_code=500,
+            detail=f"Speech synthesis failed: {str(e)}{voice_debug_info}",
         )
 
 

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+import threading
 from pathlib import Path
 
 
@@ -20,6 +21,17 @@ def ensure_directories():
         dir_path = Path(directory)
         dir_path.mkdir(exist_ok=True)
         print(f"Ensured directory exists: {dir_path}")
+
+
+def stream_output(process, prefix):
+    """Stream the output of a subprocess with a prefix."""
+    for line in iter(process.stdout.readline, ""):
+        if line:
+            print(f"{prefix}: {line.strip()}")
+
+    for line in iter(process.stderr.readline, ""):
+        if line:
+            print(f"{prefix} ERROR: {line.strip()}")
 
 
 def main():
@@ -35,13 +47,18 @@ def main():
     print("Starting FastAPI server...")
     server_process = subprocess.Popen(
         [sys.executable, "src/app.py"],
-        # Show output in console
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
         universal_newlines=True,
     )
+
+    # Start thread to stream server output
+    server_thread = threading.Thread(
+        target=stream_output, args=(server_process, "SERVER"), daemon=True
+    )
+    server_thread.start()
 
     # Print initial server output
     print("FastAPI server process started with PID:", server_process.pid)
@@ -62,13 +79,18 @@ def main():
     print("Starting Gradio client...")
     client_process = subprocess.Popen(
         [sys.executable, "src/client.py"],
-        # Show output in console
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
         universal_newlines=True,
     )
+
+    # Start thread to stream client output
+    client_thread = threading.Thread(
+        target=stream_output, args=(client_process, "CLIENT"), daemon=True
+    )
+    client_thread.start()
 
     # Print initial client output
     print("Gradio client process started with PID:", client_process.pid)
