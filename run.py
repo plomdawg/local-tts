@@ -8,8 +8,31 @@ import subprocess
 import sys
 import time
 import webbrowser
+from pathlib import Path
+
+def ensure_directories():
+    """Ensure all required directories exist."""
+    # Project directories
+    directories = [
+        "audio",
+        "models",
+        "uploads",
+        "transcripts"
+    ]
+    
+    for directory in directories:
+        dir_path = Path(directory)
+        dir_path.mkdir(exist_ok=True)
+        print(f"Ensured directory exists: {dir_path}")
 
 def main():
+    # Make sure we're in the right directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
+    
+    # Ensure required directories exist
+    ensure_directories()
+    
     # Start the FastAPI server
     print("Starting FastAPI server...")
     server_process = subprocess.Popen(
