@@ -20,7 +20,7 @@ Now that we've completed Milestone 1 (Hello TTS), the next step is to implement 
 - [x] Create file upload widget for existing audio files
 - [x] Display transcription results in a text area
 - [x] Allow downloading of transcription text
-- [ ] Ensure the UI is responsive and user-friendly
+- [x] Ensure the UI is responsive and user-friendly
 
 ### 3. Project Structure Updates
 
@@ -35,7 +35,7 @@ Now that we've completed Milestone 1 (Hello TTS), the next step is to implement 
 2. [x] Update the server to handle file uploads
 3. [x] Implement the transcription endpoint
 4. [x] Update the client UI
-5. [ ] Test the full flow: record/upload → transcribe → save → display
+5. [x] Test the full flow: record/upload → transcribe → save → display
 
 ## Resources
 
@@ -84,10 +84,10 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 ## Implementation Plan
 
 1. [x] Research and select TTS engine (Fish Speech AI)
-2. [ ] Implement basic text-to-speech functionality using Fish Speech AI
-3. [ ] Add voice selection and parameter controls
-4. [ ] Create the UI for text input, voice settings, and recording prompt
-5. [ ] Implement audio playback and download functionality
+2. [x] Implement basic text-to-speech functionality using Fish Speech AI
+3. [x] Add voice selection and parameter controls
+4. [x] Create the UI for text input, voice settings, and recording prompt
+5. [x] Implement audio playback and download functionality
 
 ## Resources
 
@@ -104,10 +104,10 @@ The milestone will be considered complete when:
 - Generated audio can be played back and downloaded
 - The system handles errors gracefully
 
-# Next Steps: Milestone 3.5 - UI Restructuring
+# Next Steps: Milestone 3.5 - Code Organization and UI Restructuring
 
 ## Overview
-Before proceeding to API and integrations, we need to restructure the UI to better match our intended workflow and provide a more intuitive experience for users.
+Before proceeding to API and integrations, we needed to restructure the UI and reorganize the codebase for better maintainability and a more intuitive experience for users.
 
 ## Tasks
 
@@ -121,7 +121,7 @@ Before proceeding to API and integrations, we need to restructure the UI to bett
 - [X] Create a "Voice Cloning from Recording" tab
   - [X] Implement text prompt for user to read
   - [X] Add record button
-  - [ ] Add audio preview functionality
+  - [X] Add audio preview functionality
   - [X] Implement naming input for new models
   - [X] Create file generation for both .mp3 and .txt files
   
@@ -133,28 +133,43 @@ Before proceeding to API and integrations, we need to restructure the UI to bett
   
 - [X] Create a "Voice Model Management" tab
   - [X] Display all available voice models
-  - [ ] Allow renaming of models
-  - [ ] Provide text editing for model transcripts
-  - [ ] Add preview functionality for MP3 files
+  - [X] Allow renaming of models
+  - [X] Provide text editing for model transcripts
+  - [X] Add preview functionality for MP3 files
 
-### 2. Backend Updates
+### 2. Code Organization
 
-- [ ] Update server endpoints to support the new UI structure
-- [ ] Create model management functionality
-- [ ] Implement voice model CRUD operations
-- [ ] Ensure all file operations work correctly
+- [X] Refactor into a modular structure
+  - [X] Create `api/` directory for FastAPI endpoints
+  - [X] Create `core/` directory for core services
+  - [X] Create `ui/` directory for Gradio UI components
+  - [X] Implement proper imports and dependencies
+  - [X] Move model_manager.py to core directory
+  
+- [X] Implement better error handling
+  - [X] Add service-level error handling
+  - [X] Improve API error responses
+  - [X] Add user-friendly UI error messages
+  
+- [X] Update documentation
+  - [X] Create detailed README
+  - [X] Document the modular architecture
+  - [X] Update run.py for easier startup
 
 ## Implementation Plan
 
-1. [ ] Design the new UI structure
-2. [ ] Implement each tab one by one
-3. [ ] Update the server to support all required operations
-4. [ ] Test the full workflow across all tabs
-5. [ ] Refine the user experience based on testing feedback
+1. [X] Design the new UI structure
+2. [X] Implement each tab one by one
+3. [X] Create modular component structure
+4. [X] Refactor the backend services
+5. [X] Update the API endpoints to match new structure
+6. [X] Test the full workflow across all tabs
 
 ## Success Criteria
 
 The milestone will be considered complete when:
+- The application has a modular, maintainable codebase
+- Each component is focused on a single responsibility
 - The application has four distinct tabs as described
 - Each tab functions correctly and performs its intended purpose
 - Voice models can be created, edited, and used for text-to-speech
@@ -163,21 +178,19 @@ The milestone will be considered complete when:
 # Next Steps: Milestone 4 - API & Integrations
 
 ## Overview
-After completing the UI restructuring, the next step is to finalize the API specification and implement integrations with other platforms like Discord and Home Assistant.
+Now that we've completed the code restructuring, the next step is to finalize the API specification and implement integrations with other platforms like Discord and Home Assistant.
 
 ## Tasks
 
 ### 1. API Finalization
 
 - [ ] Create a comprehensive OpenAPI specification
-- [ ] Add API key authentication for secure access
-- [ ] Implement rate limiting for the API
 - [ ] Add detailed API documentation
 - [ ] Create example API calls and code snippets
 
 ### 2. Discord Integration
 
-- [ ] Create a Discord bot using discord.py
+- [ ] Create discord cog to plug into existing Discord bot
 - [ ] Implement text-to-speech commands
 - [ ] Add voice recording and transcription features
 - [ ] Implement voice model selection commands

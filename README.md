@@ -117,22 +117,24 @@ You can access the auto-generated API documentation at:
 ## Project Structure
 
 ```
-local-tts/
-├── audio/                # Directory for audio files
-│   ├── hello.mp3         # Sample audio file
-│   └── generated/        # Directory for generated TTS files
-├── src/                  # Source code
-│   ├── app.py            # FastAPI server 
-│   ├── client.py         # Gradio client
-│   └── model_manager.py  # Voice model management utilities
-├── models/               # Voice models directory
-│   └── presets/          # Voice presets directory
-├── uploads/              # Directory for uploaded audio files
-├── transcripts/          # Directory for generated transcripts
-├── run.py                # Combined runner script
-├── requirements.txt      # Project dependencies
-├── NEXT_STEPS.md         # Project roadmap
-└── README.md             # This file
+src/
+├── api/                   # API endpoints
+│   ├── tts.py             # Text-to-speech endpoints
+│   ├── transcription.py   # Transcription endpoints
+│   └── voice_models.py    # Voice model management endpoints
+├── core/                  # Core functionality
+│   ├── config.py          # Configuration and constants
+│   ├── model_manager.py   # Voice model management utilities
+│   ├── tts_service.py     # TTS service using Gradio client
+│   └── whisper_service.py # Transcription service
+├── ui/                    # UI components
+│   ├── tts_tab.py         # Text-to-speech tab
+│   ├── voice_recording_tab.py  # Voice recording tab
+│   ├── voice_upload_tab.py     # Voice upload tab
+│   ├── voice_management_tab.py # Voice management tab
+│   └── utils.py           # UI utilities
+├── app.py                 # FastAPI application
+└── client.py              # Gradio client application
 ```
 
 ## Voice Model Management
