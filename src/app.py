@@ -27,12 +27,10 @@ except ImportError:
 # Import model manager utilities - with better error handling
 try:
     from model_manager import (
-        load_config,
         list_voice_models,
         get_voice_model_info,
         list_presets,
         get_preset,
-        create_default_config,
         add_voice_model,
         remove_voice_model,
     )
@@ -40,94 +38,154 @@ except ImportError as e:
     print(f"Error importing model_manager: {e}")
     
     # Define fallback functions
-    def load_config():
-        config_file = Path("models/voice_config.json")
-        if not config_file.exists():
-            return create_default_config()
-        try:
-            with open(config_file, "r") as f:
-                import json
-                return json.load(f)
-        except Exception as e:
-            print(f"Error loading config: {e}")
-            return create_default_config()
-    
-    def create_default_config():
-        config = {
-            "default_voice": "default",
-            "available_models": {
-                "default": {
-                    "description": "Default voice provided by Fish Speech AI",
-                    "voice_path": None,
-                    "default_settings": {
-                        "speed": 1.0,
-                        "pitch": 0.0
-                    }
-                }
-            },
-            "voice_options": {
-                "speed": {
-                    "min": 0.5,
-                    "max": 2.0,
-                    "step": 0.1,
-                    "default": 1.0
-                },
-                "pitch": {
-                    "min": -10.0,
-                    "max": 10.0,
-                    "step": 0.5,
-                    "default": 0.0
-                }
-            },
-            "presets_directory": "presets",
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat()
-        }
-        
-        os.makedirs("models", exist_ok=True)
-        try:
-            with open("models/voice_config.json", "w") as f:
-                import json
-                json.dump(config, f, indent=2)
-        except Exception as e:
-            print(f"Error saving default config: {e}")
-        
-        return config
-    
     def list_voice_models():
-        config = load_config()
-        return list(config.get("available_models", {}).keys())
+        """List all available voice models by scanning the models directory"""
+        voice_models = ["default"]  # Default voice is always available
+        
+        model_dir = Path("models")
+        if model_dir.exists():
+            # Scan for individual model folders
+            model_dirs = [d for d in model_dir.glob("*") if d.is_dir() and d.name != "presets"]
+            
+            for model_dir in model_dirs:
+                model_name = model_dir.name
+                
+                # Check if this folder has a json metadata file
+                json_file = model_dir / f"{model_name}.json"
+                if json_file.exists():
+                    voice_models.append(model_name)
+            
+            # Also look for standalone json files in the models root
+            for json_file in model_dir.glob("*.json"):
+                voice_models.append(json_file.stem)
+                    
+        return voice_models
     
     def get_voice_model_info(voice_name):
-        config = load_config()
-        return config.get("available_models", {}).get(voice_name)
+        """Get information about a specific voice model"""
+        if voice_name == "default":
+            return {
+                "description": "Default voice provided by Fish Speech AI",
+                "voice_path": None,
+                "default_settings": {
+                    "speed": 1.0,
+                    "pitch": 0.0
+                }
+            }
+        
+        model_dir = Path("models")
+        
+        # Check if the model has its own directory with a json file
+        model_json = model_dir / voice_name / f"{voice_name}.json"
+        
+        # If no directory exists, check for standalone json file
+        if not model_json.exists():
+            model_json = model_dir / f"{voice_name}.json"
+        
+        if not model_json.exists():
+            return None
+        
+        try:
+            with open(model_json, "r") as f:
+                model_info = json.load(f)
+                
+            # Ensure the model info has the required fields
+            if "default_settings" not in model_info:
+                model_info["default_settings"] = {"speed": 1.0, "pitch": 0.0}
+            
+            # Make sure voice_path is set to the json file
+            model_info["voice_path"] = str(model_json)
+                
+            return model_info
+        
+        except Exception as e:
+            print(f"Error loading voice model info: {e}")
+            return None
     
     def list_presets():
-        return []
+        presets_dir = Path("models/presets")
+        if not presets_dir.exists():
+            return []
+            
+        preset_files = list(presets_dir.glob("*.json"))
+        return [preset_file.stem for preset_file in preset_files]
     
     def get_preset(preset_name):
-        return None
+        preset_path = Path(f"models/presets/{preset_name}.json")
+        
+        if not preset_path.exists():
+            return None
+        
+        try:
+            with open(preset_path, "r") as f:
+                preset = json.load(f)
+            return preset
+        
+        except Exception as e:
+            print(f"Error loading preset: {e}")
+            return None
     
     def add_voice_model(voice_name, description, voice_path, settings=None):
-        config = load_config()
+        if voice_name == "default":
+            print("Cannot modify the default voice model")
+            return False
         
         if settings is None:
             settings = {"speed": 1.0, "pitch": 0.0}
         
-        config["available_models"][voice_name] = {
+        # Create model directory if it doesn't exist
+        model_dir = Path("models") / voice_name
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Create or update the model json file
+        json_path = model_dir / f"{voice_name}.json"
+        
+        model_info = {
+            "name": voice_name,
             "description": description,
             "voice_path": voice_path,
-            "default_settings": settings
+            "default_settings": settings,
+            "created_at": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat()
         }
         
         try:
-            with open("models/voice_config.json", "w") as f:
-                import json
-                json.dump(config, f, indent=2)
+            with open(json_path, "w") as f:
+                json.dump(model_info, f, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving config with new voice model: {e}")
+            print(f"Error saving voice model: {e}")
             return False
+    
+    def remove_voice_model(voice_name):
+        if voice_name == "default":
+            print("Cannot remove the default voice model")
+            return False
+        
+        # Check if the model has its own directory
+        model_dir = Path("models") / voice_name
+        
+        # If the directory exists, delete it
+        if model_dir.exists() and model_dir.is_dir():
+            try:
+                import shutil
+                shutil.rmtree(model_dir)
+                return True
+            except Exception as e:
+                print(f"Error deleting voice model directory: {e}")
+                return False
+        else:
+            # Otherwise, check for standalone json file
+            json_path = Path("models") / f"{voice_name}.json"
+            if json_path.exists():
+                try:
+                    os.remove(json_path)
+                    return True
+                except Exception as e:
+                    print(f"Error deleting voice model file: {e}")
+                    return False
+        
+        return False
 
 app = FastAPI(title="Local TTS API")
 
@@ -327,8 +385,6 @@ async def synthesize_speech(request: TTSRequest):
             voice_info = get_voice_model_info(request.voice)
             if voice_info and voice_info.get("voice_path"):
                 voice_path = voice_info["voice_path"]
-            elif os.path.exists(MODEL_DIR / f"{request.voice}.json"):
-                voice_path = str(MODEL_DIR / f"{request.voice}.json")
             else:
                 print(f"Warning: Voice model '{request.voice}' not found")
         
@@ -367,13 +423,13 @@ async def list_voices():
     Get a list of available voice models
     """
     try:
-        # Get voices from config file
+        # Get voices from models directory
         voices = list_voice_models()
         voice_info = []
         
-        print(f"Found voices in config: {voices}")  # Debug log
+        print(f"Found voices: {voices}")  # Debug log
         
-        # Add config-defined voices
+        # Add voice info for each model
         for voice in voices:
             info = get_voice_model_info(voice)
             if info:
@@ -382,46 +438,6 @@ async def list_voices():
                     "description": info.get("description", ""),
                     "default_settings": info.get("default_settings", {})
                 })
-        
-        # Also check models directory for any models not in config
-        model_files = list(MODEL_DIR.glob("*/*.json"))
-        model_files.extend(list(MODEL_DIR.glob("*.json")))
-        
-        for model_file in model_files:
-            # Skip the config file and presets
-            if model_file.name == "voice_config.json" or model_file.parent.name == "presets":
-                continue
-                
-            model_name = model_file.stem
-            
-            # Skip if already in the list
-            if model_name in [v["name"] for v in voice_info]:
-                continue
-                
-            # Try to load the model info
-            try:
-                with open(model_file, "r") as f:
-                    model_data = json.load(f)
-                    
-                # Add the model to the list
-                voice_info.append({
-                    "name": model_name,
-                    "description": model_data.get("description", f"Voice model for {model_name}"),
-                    "default_settings": {"speed": 1.0, "pitch": 0.0}
-                })
-                
-                # Also register it in the config for future use
-                try:
-                    add_voice_model(
-                        voice_name=model_name,
-                        description=model_data.get("description", f"Voice model for {model_name}"),
-                        voice_path=str(model_file)
-                    )
-                except Exception as e:
-                    print(f"Warning: Failed to register voice model in config: {e}")
-                    
-            except Exception as e:
-                print(f"Error loading model file {model_file}: {e}")
         
         print(f"Final voice list: {[v['name'] for v in voice_info]}")  # Debug log
         
@@ -480,9 +496,6 @@ async def delete_voice_model(voice_name: str):
     """
     try:
         # Check if the voice model exists
-        from model_manager import remove_voice_model, get_voice_model_info
-        
-        # Get information about the voice model first
         voice_info = get_voice_model_info(voice_name)
         
         if not voice_info:
@@ -495,14 +508,7 @@ async def delete_voice_model(voice_name: str):
                 status_code=403, detail="Cannot delete the default voice model"
             )
         
-        # Get model directory path if available
-        model_dir = None
-        if voice_info.get("voice_path"):
-            voice_path = Path(voice_info["voice_path"])
-            if voice_path.exists() and voice_path.is_file():
-                model_dir = voice_path.parent
-        
-        # Remove the model from the configuration
+        # Remove the voice model
         success = remove_voice_model(voice_name)
         
         if not success:
@@ -510,20 +516,10 @@ async def delete_voice_model(voice_name: str):
                 status_code=500, detail=f"Failed to remove voice model '{voice_name}'"
             )
         
-        # Also try to delete the model files if possible
-        files_deleted = False
-        if model_dir and model_dir.exists() and model_dir.is_dir():
-            try:
-                import shutil
-                shutil.rmtree(model_dir)
-                files_deleted = True
-            except Exception as e:
-                print(f"Warning: Could not delete model directory: {e}")
-        
         return JSONResponse({
             "success": True,
             "message": f"Voice model '{voice_name}' deleted successfully",
-            "files_deleted": files_deleted
+            "files_deleted": True
         })
         
     except HTTPException:
@@ -536,11 +532,6 @@ async def delete_voice_model(voice_name: str):
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Make sure the configuration file exists
-    if not (MODEL_DIR / "voice_config.json").exists():
-        print("Creating default configuration...")
-        create_default_config()
     
     print("Starting Local TTS API...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

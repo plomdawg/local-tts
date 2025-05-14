@@ -126,8 +126,7 @@ local-tts/
 │   ├── client.py         # Gradio client
 │   └── model_manager.py  # Voice model management utilities
 ├── models/               # Voice models directory
-│   ├── presets/          # Voice presets directory
-│   └── voice_config.json # Voice configuration file
+│   └── presets/          # Voice presets directory
 ├── uploads/              # Directory for uploaded audio files
 ├── transcripts/          # Directory for generated transcripts
 ├── run.py                # Combined runner script

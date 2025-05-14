@@ -270,35 +270,25 @@ def save_voice_model(audio_file, prompt_text, name):
         with open(text_path, "w", encoding="utf-8") as f:
             f.write(clean_text)
 
-        # Create a JSON file with voice model info (can be used later for actual model creation)
+        # Create a JSON file with voice model info
         model_info = {
             "name": name,
             "description": f"Voice model for {name}",
             "audio_path": audio_path,
             "transcript_path": text_path,
-            "created_at": datetime.now().isoformat(),
+            "default_settings": {
+                "speed": 1.0,
+                "pitch": 0.0
+            },
+            "created_at": datetime.now().isoformat()
         }
 
         model_json_path = os.path.join(voice_dir, f"{name}.json")
         with open(model_json_path, "w") as f:
             json.dump(model_info, f, indent=2)
 
-        # Register the voice model in the configuration
-        try:
-            # Import the model_manager module
-            import sys
-
-            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            from model_manager import add_voice_model
-
-            # Add the voice model to the configuration
-            add_voice_model(
-                voice_name=name,
-                description=f"Voice model for {name}",
-                voice_path=model_json_path,
-            )
-        except Exception as e:
-            print(f"Warning: Failed to register voice model in config: {e}")
+        # No need to register in config anymore - the new system automatically 
+        # discovers models by scanning directories
 
         return f"SUCCESS: Voice model '{name}' saved successfully. Files saved to {voice_dir}"
 
@@ -547,11 +537,13 @@ with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column():
                 model_info = gr.JSON(label="Voice Model Information", value={})
-
-                play_sample_btn = gr.Button("Play Sample")
-                sample_audio = gr.Audio(label="Sample Audio", type="filepath")
                 
-                # Add delete button
+                # Replace sample button with transcript and file details
+                gr.Markdown("### Voice Sample Details")
+                sample_transcript = gr.Textbox(label="Transcript", value="", lines=3, interactive=False)
+                sample_details = gr.Textbox(label="Audio File Details", value="", interactive=False)
+                
+                # Keep the delete button
                 delete_model_btn = gr.Button("Delete Voice Model", variant="stop")
                 delete_status = gr.Textbox(label="Status", value="", interactive=False)
 
@@ -562,15 +554,15 @@ with gr.Blocks() as demo:
             print(f"Refreshed voices: {voices}")  # Debug print
             return gr.Dropdown(choices=voices)
 
-        # Function to get voice model info
+        # Updated function to get voice model info and load transcript/details
         def get_voice_model_info(model_name):
             if not model_name:
-                return {}
+                return {}, "", ""
 
             try:
                 response = requests.get("http://localhost:8000/voices")
                 if response.status_code != 200:
-                    return {"error": f"Error fetching voices: {response.status_code}"}
+                    return {"error": f"Error fetching voices: {response.status_code}"}, "", ""
 
                 voices_data = response.json().get("voices", [])
 
@@ -580,12 +572,123 @@ with gr.Blocks() as demo:
                 )
 
                 if not voice_data:
-                    return {"error": f"Voice model '{model_name}' not found"}
-
-                return voice_data
+                    return {"error": f"Voice model '{model_name}' not found"}, "", ""
+                
+                # Try to load the transcript and file details
+                transcript = "No transcript found"
+                file_details = "No file details available"
+                
+                # Search for voice model files
+                model_dir = os.path.join("models", model_name)
+                if os.path.exists(model_dir):
+                    # Look for transcript file
+                    transcript_path = os.path.join(model_dir, f"{model_name}.txt")
+                    if os.path.exists(transcript_path):
+                        try:
+                            with open(transcript_path, "r", encoding="utf-8") as f:
+                                transcript = f.read()
+                        except Exception as e:
+                            transcript = f"Error reading transcript: {str(e)}"
+                    
+                    # Look for audio file and get details
+                    audio_path = os.path.join(model_dir, f"{model_name}.mp3")
+                    if os.path.exists(audio_path):
+                        try:
+                            file_size = os.path.getsize(audio_path)
+                            file_size_mb = file_size / (1024 * 1024)
+                            
+                            # Try to get audio duration with multiple fallbacks
+                            duration = "Unknown"
+                            duration_methods = []
+                            
+                            # Method 1: Try mutagen MP3
+                            try:
+                                from mutagen.mp3 import MP3
+                                audio = MP3(audio_path)
+                                if audio.info.length > 0:
+                                    duration = f"{audio.info.length:.2f} seconds"
+                                    duration_methods.append("mutagen.mp3")
+                            except Exception as e:
+                                print(f"Mutagen MP3 error: {str(e)}")
+                            
+                            # Method 2: Try mutagen File (generic)
+                            if duration == "Unknown":
+                                try:
+                                    from mutagen import File
+                                    audio = File(audio_path)
+                                    if audio and hasattr(audio.info, 'length'):
+                                        duration = f"{audio.info.length:.2f} seconds"
+                                        duration_methods.append("mutagen.File")
+                                except Exception as e:
+                                    print(f"Mutagen File error: {str(e)}")
+                            
+                            # Method 3: Try FFmpeg if available (via subprocess)
+                            if duration == "Unknown":
+                                try:
+                                    import subprocess
+                                    cmd = ["ffprobe", "-v", "error", "-show_entries", 
+                                           "format=duration", "-of", 
+                                           "default=noprint_wrappers=1:nokey=1", 
+                                           audio_path]
+                                    result = subprocess.run(cmd, capture_output=True, text=True)
+                                    if result.returncode == 0 and result.stdout.strip():
+                                        duration_secs = float(result.stdout.strip())
+                                        duration = f"{duration_secs:.2f} seconds"
+                                        duration_methods.append("ffprobe")
+                                except Exception as e:
+                                    print(f"FFprobe error: {str(e)}")
+                            
+                            # Method 4: Try wavio if available (for WAV files mistakenly named .mp3)
+                            if duration == "Unknown":
+                                try:
+                                    import wavio
+                                    import numpy as np
+                                    wave_read = wavio.read(audio_path)
+                                    if wave_read and hasattr(wave_read, 'rate'):
+                                        samples = len(wave_read.data)
+                                        sample_rate = wave_read.rate
+                                        duration_secs = samples / sample_rate
+                                        duration = f"{duration_secs:.2f} seconds"
+                                        duration_methods.append("wavio")
+                                except Exception as e:
+                                    print(f"Wavio error: {str(e)}")
+                            
+                            # Method 5: Basic estimation using file size (very rough estimate)
+                            if duration == "Unknown":
+                                # Calculate very rough estimate based on bitrate assumptions
+                                # Assuming a typical 128kbps MP3
+                                try:
+                                    # MP3 at 128kbps = 16KB per second of audio
+                                    # This is just a very approximate estimate
+                                    bitrate = 128 * 1024  # 128kbps in bits per second
+                                    file_size_bits = file_size * 8  # Convert bytes to bits
+                                    duration_secs = file_size_bits / bitrate
+                                    duration = f"~{duration_secs:.2f} seconds (estimated)"
+                                    duration_methods.append("size-estimate")
+                                except Exception as e:
+                                    print(f"Size estimation error: {str(e)}")
+                            
+                            # If all methods fail, provide a helpful message
+                            if duration == "Unknown":
+                                duration = "Unknown (MP3 may be non-standard format)"
+                            
+                            # Add debug information about which method worked
+                            method_info = ""
+                            if duration_methods:
+                                method_info = f" (via {', '.join(duration_methods)})"
+                            
+                            file_details = (
+                                f"File size: {file_size_mb:.2f} MB\n"
+                                f"Duration: {duration}{method_info}\n"
+                                f"Path: {audio_path}"
+                            )
+                        except Exception as e:
+                            file_details = f"Error getting file details: {str(e)}"
+                
+                return voice_data, transcript, file_details
 
             except Exception as e:
-                return {"error": f"Error getting voice model info: {str(e)}"}
+                return {"error": f"Error getting voice model info: {str(e)}"}, "", ""
         
         # Function to delete voice model
         def delete_voice_model(model_name):
@@ -618,9 +721,11 @@ with gr.Blocks() as demo:
             fn=refresh_voice_models, inputs=[], outputs=[voice_models_list]
         )
 
-        # Connect the voice model dropdown
+        # Connect the voice model dropdown with the updated function
         voice_models_list.change(
-            fn=get_voice_model_info, inputs=[voice_models_list], outputs=[model_info]
+            fn=get_voice_model_info, 
+            inputs=[voice_models_list], 
+            outputs=[model_info, sample_transcript, sample_details]
         )
         
         # Connect the delete button
@@ -632,53 +737,6 @@ with gr.Blocks() as demo:
             fn=refresh_voice_models,
             inputs=[],
             outputs=[voice_models_list]
-        )
-
-        # TODO: Implement function to play a sample of the selected voice
-        def play_voice_sample(model_name):
-            if not model_name:
-                return None, "Please select a voice model first."
-
-            try:
-                # Generate a sample text using the selected voice
-                sample_text = "This is a sample of the selected voice model."
-
-                # Call the synthesize endpoint
-                data = {
-                    "text": sample_text,
-                    "voice": model_name,
-                    "speed": 1.0,
-                    "pitch": 0.0,
-                    "use_cache": True,
-                }
-
-                response = requests.post("http://localhost:8000/synthesize", json=data)
-
-                if response.status_code != 200:
-                    error_msg = f"Error generating sample: {response.status_code}"
-                    print(error_msg)
-                    return None, error_msg
-
-                result = response.json()
-                audio_file = result.get("audio_file", "")
-
-                if audio_file and os.path.exists(audio_file):
-                    return audio_file, "Sample generated successfully."
-                else:
-                    error_msg = "Generated audio file not found."
-                    print(error_msg)
-                    return None, error_msg
-
-            except Exception as e:
-                error_msg = f"Error playing sample: {str(e)}"
-                print(error_msg)
-                return None, error_msg
-
-        # Connect the play sample button
-        play_sample_btn.click(
-            fn=play_voice_sample,
-            inputs=[voice_models_list],
-            outputs=[sample_audio, voice_save_status],
         )
 
     with gr.Tab("Hello TTS"):
