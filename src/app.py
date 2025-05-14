@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+import json
 
 from fastapi import FastAPI, Response, UploadFile, File, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
@@ -32,6 +33,7 @@ try:
         list_presets,
         get_preset,
         create_default_config,
+        add_voice_model,
     )
 except ImportError as e:
     print(f"Error importing model_manager: {e}")
@@ -104,6 +106,27 @@ except ImportError as e:
     
     def get_preset(preset_name):
         return None
+    
+    def add_voice_model(voice_name, description, voice_path, settings=None):
+        config = load_config()
+        
+        if settings is None:
+            settings = {"speed": 1.0, "pitch": 0.0}
+        
+        config["available_models"][voice_name] = {
+            "description": description,
+            "voice_path": voice_path,
+            "default_settings": settings
+        }
+        
+        try:
+            with open("models/voice_config.json", "w") as f:
+                import json
+                json.dump(config, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"Error saving config with new voice model: {e}")
+            return False
 
 app = FastAPI(title="Local TTS API")
 
@@ -184,12 +207,29 @@ async def transcribe_audio(file: UploadFile = File(...)):
             status_code=503, detail="Transcription service is not available"
         )
 
-    # Check file format
+    # Check file format based on content type or filename
     allowed_formats = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-m4a"]
-    if file.content_type not in allowed_formats:
+    
+    # Get the file extension to use as a fallback
+    file_extension = None
+    if file.filename:
+        file_extension = file.filename.split(".")[-1].lower()
+    
+    # Determine content type, either from metadata or fallback to extension
+    content_type = file.content_type
+    if not content_type or content_type == "None" or content_type == "application/octet-stream":
+        # Use extension to determine content type
+        if file_extension == "mp3":
+            content_type = "audio/mp3"
+        elif file_extension == "wav":
+            content_type = "audio/wav"
+        elif file_extension == "m4a":
+            content_type = "audio/x-m4a"
+    
+    if content_type not in allowed_formats:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format: {file.content_type}. Supported formats: {', '.join(allowed_formats)}",
+            detail=f"Unsupported file format: {content_type}. Supported formats: {', '.join(allowed_formats)}",
         )
 
     # Generate unique file names
@@ -198,7 +238,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
     base_filename = f"{timestamp}_{unique_id}"
 
     # Save uploaded audio file
-    file_extension = file.filename.split(".")[-1]
+    file_extension = file_extension or ""
+    if not file_extension and file.filename:
+        file_extension = file.filename.split(".")[-1]
     audio_path = UPLOAD_DIR / f"{base_filename}.{file_extension}"
 
     with open(audio_path, "wb") as f:
@@ -324,11 +366,13 @@ async def list_voices():
     Get a list of available voice models
     """
     try:
+        # Get voices from config file
         voices = list_voice_models()
         voice_info = []
         
-        print(f"Found voices: {voices}")  # Debug log
+        print(f"Found voices in config: {voices}")  # Debug log
         
+        # Add config-defined voices
         for voice in voices:
             info = get_voice_model_info(voice)
             if info:
@@ -337,6 +381,48 @@ async def list_voices():
                     "description": info.get("description", ""),
                     "default_settings": info.get("default_settings", {})
                 })
+        
+        # Also check models directory for any models not in config
+        model_files = list(MODEL_DIR.glob("*/*.json"))
+        model_files.extend(list(MODEL_DIR.glob("*.json")))
+        
+        for model_file in model_files:
+            # Skip the config file and presets
+            if model_file.name == "voice_config.json" or model_file.parent.name == "presets":
+                continue
+                
+            model_name = model_file.stem
+            
+            # Skip if already in the list
+            if model_name in [v["name"] for v in voice_info]:
+                continue
+                
+            # Try to load the model info
+            try:
+                with open(model_file, "r") as f:
+                    model_data = json.load(f)
+                    
+                # Add the model to the list
+                voice_info.append({
+                    "name": model_name,
+                    "description": model_data.get("description", f"Voice model for {model_name}"),
+                    "default_settings": {"speed": 1.0, "pitch": 0.0}
+                })
+                
+                # Also register it in the config for future use
+                try:
+                    add_voice_model(
+                        voice_name=model_name,
+                        description=model_data.get("description", f"Voice model for {model_name}"),
+                        voice_path=str(model_file)
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to register voice model in config: {e}")
+                    
+            except Exception as e:
+                print(f"Error loading model file {model_file}: {e}")
+        
+        print(f"Final voice list: {[v['name'] for v in voice_info]}")  # Debug log
         
         return JSONResponse({
             "success": True,

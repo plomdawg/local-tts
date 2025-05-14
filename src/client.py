@@ -10,10 +10,14 @@ from datetime import datetime
 # Function to get available voices from the API endpoint
 def get_available_voices():
     try:
-        response = requests.get("http://localhost:8000/voices")
+        # Force a fresh request with cache-busting
+        timestamp = datetime.now().timestamp()
+        response = requests.get(f"http://localhost:8000/voices?t={timestamp}")
+        
         if response.status_code == 200:
             data = response.json()
             voices = [voice["name"] for voice in data.get("voices", [])]
+            print(f"Available voices: {voices}")  # Debug print
             return voices if voices else ["default"]
         else:
             print(f"Error fetching voices: {response.status_code}")
@@ -386,8 +390,26 @@ with gr.Blocks() as demo:
                     "created_at": datetime.now().isoformat()
                 }
                 
-                with open(os.path.join(voice_dir, f"{name}.json"), "w") as f:
+                model_json_path = os.path.join(voice_dir, f"{name}.json")
+                with open(model_json_path, "w") as f:
                     json.dump(model_info, f, indent=2)
+                
+                # Register the voice model in the configuration
+                try:
+                    # Import the model_manager module
+                    import sys
+                    import os
+                    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+                    from model_manager import add_voice_model
+                    
+                    # Add the voice model to the configuration
+                    add_voice_model(
+                        voice_name=name,
+                        description=f"Voice model for {name}",
+                        voice_path=model_json_path
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to register voice model in config: {e}")
                 
                 return f"Voice model '{name}' saved successfully. Files saved to {voice_dir}"
                 
@@ -470,7 +492,10 @@ with gr.Blocks() as demo:
         
         # Function to refresh voice models
         def refresh_voice_models():
-            return gr.Dropdown(choices=get_available_voices())
+            # Force a fresh request with cache-busting
+            voices = get_available_voices()
+            print(f"Refreshed voices: {voices}")  # Debug print
+            return gr.Dropdown(choices=voices)
         
         # Function to get voice model info
         def get_voice_model_info(model_name):
