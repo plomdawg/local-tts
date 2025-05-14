@@ -1,3 +1,6 @@
 # Ignore all desktop.ini files
 desktop.ini
 **/desktop.ini 
+
+# Ignore all pyc files
+**/*.pyc
