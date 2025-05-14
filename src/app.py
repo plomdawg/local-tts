@@ -1,13 +1,109 @@
-from fastapi import FastAPI, Response, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
 import os
 import uuid
 import time
+import hashlib
 from datetime import datetime
 from pathlib import Path
-from faster_whisper import WhisperModel
-import fish_audio_sdk.tts as fish_tts
+from typing import List, Optional
+
+from fastapi import FastAPI, Response, UploadFile, File, HTTPException, Query
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
+
+# Comment these out if having issues with their installation
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    print("Warning: faster-whisper not installed. Transcription features will be disabled.")
+    WhisperModel = None
+
+try:
+    import fish_audio_sdk.tts as fish_tts
+except ImportError:
+    print("Warning: fish_audio_sdk not installed. TTS features will be disabled.")
+    fish_tts = None
+
+# Import model manager utilities - with better error handling
+try:
+    from model_manager import (
+        load_config,
+        list_voice_models,
+        get_voice_model_info,
+        list_presets,
+        get_preset,
+        create_default_config,
+    )
+except ImportError as e:
+    print(f"Error importing model_manager: {e}")
+    
+    # Define fallback functions
+    def load_config():
+        config_file = Path("models/voice_config.json")
+        if not config_file.exists():
+            return create_default_config()
+        try:
+            with open(config_file, "r") as f:
+                import json
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config: {e}")
+            return create_default_config()
+    
+    def create_default_config():
+        config = {
+            "default_voice": "default",
+            "available_models": {
+                "default": {
+                    "description": "Default voice provided by Fish Speech AI",
+                    "voice_path": None,
+                    "default_settings": {
+                        "speed": 1.0,
+                        "pitch": 0.0
+                    }
+                }
+            },
+            "voice_options": {
+                "speed": {
+                    "min": 0.5,
+                    "max": 2.0,
+                    "step": 0.1,
+                    "default": 1.0
+                },
+                "pitch": {
+                    "min": -10.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "default": 0.0
+                }
+            },
+            "presets_directory": "presets",
+            "created_at": datetime.now().isoformat(),
+            "last_updated": datetime.now().isoformat()
+        }
+        
+        os.makedirs("models", exist_ok=True)
+        try:
+            with open("models/voice_config.json", "w") as f:
+                import json
+                json.dump(config, f, indent=2)
+        except Exception as e:
+            print(f"Error saving default config: {e}")
+        
+        return config
+    
+    def list_voice_models():
+        config = load_config()
+        return list(config.get("available_models", {}).keys())
+    
+    def get_voice_model_info(voice_name):
+        config = load_config()
+        return config.get("available_models", {}).get(voice_name)
+    
+    def list_presets():
+        return []
+    
+    def get_preset(preset_name):
+        return None
 
 app = FastAPI(title="Local TTS API")
 
@@ -16,36 +112,54 @@ UPLOAD_DIR = Path("uploads")
 TRANSCRIPT_DIR = Path("transcripts")
 MODEL_DIR = Path("models")
 AUDIO_OUTPUT_DIR = Path("audio/generated")
+CACHE_DIR = Path("audio/cache")
 
 # Ensure directories exist
 UPLOAD_DIR.mkdir(exist_ok=True)
 TRANSCRIPT_DIR.mkdir(exist_ok=True)
 MODEL_DIR.mkdir(exist_ok=True)
 AUDIO_OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
+CACHE_DIR.mkdir(exist_ok=True, parents=True)
 
 # Initialize whisper model
 model_size = "base"
 whisper_model = None
 
-try:
-    whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
-except Exception as e:
-    print(f"Warning: Failed to initialize whisper model: {e}")
-    print("Transcription functionality will be unavailable until model is loaded.")
+if WhisperModel:
+    try:
+        whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    except Exception as e:
+        print(f"Warning: Failed to initialize whisper model: {e}")
+        print("Transcription functionality will be unavailable until model is loaded.")
 
 # Initialize Fish Speech TTS
 tts_model = None
-try:
-    tts_model = fish_tts.load_model()
-except Exception as e:
-    print(f"Warning: Failed to initialize Fish Speech TTS model: {e}")
-    print("TTS functionality will be unavailable until model is loaded.")
+if fish_tts:
+    try:
+        tts_model = fish_tts.load_model()
+    except Exception as e:
+        print(f"Warning: Failed to initialize Fish Speech TTS model: {e}")
+        print("TTS functionality will be unavailable until model is loaded.")
 
 class TTSRequest(BaseModel):
     text: str
     voice: str = "default"  # Default voice
-    speed: float = 1.0      # Speech speed multiplier
-    pitch: float = 0.0      # Pitch adjustment
+    speed: float = Field(1.0, ge=0.5, le=2.0)  # Speech speed multiplier
+    pitch: float = Field(0.0, ge=-10.0, le=10.0)  # Pitch adjustment
+    use_cache: bool = True  # Whether to use cached audio files
+
+class VoiceInfo(BaseModel):
+    name: str
+    description: str
+    voice_path: Optional[str] = None
+    default_settings: Optional[dict] = None
+
+@app.get("/")
+async def root():
+    """
+    Root endpoint to confirm API is working
+    """
+    return {"message": "Local TTS API is running"}
 
 @app.get("/say")
 async def say_hello():
@@ -129,25 +243,51 @@ async def synthesize_speech(request: TTSRequest):
     """
     Generate speech from text using Fish Speech AI
     """
-    if not tts_model:
+    if not tts_model or not fish_tts:
         raise HTTPException(
             status_code=503, detail="TTS service is not available"
         )
     
     try:
+        # Generate a unique cache key based on the request parameters
+        cache_key = hashlib.md5(
+            f"{request.text}_{request.voice}_{request.speed}_{request.pitch}".encode()
+        ).hexdigest()
+        
+        # Check cache if enabled
+        cache_file = CACHE_DIR / f"{cache_key}.mp3"
+        if request.use_cache and cache_file.exists():
+            print(f"Using cached audio file: {cache_file}")
+            return JSONResponse({
+                "success": True,
+                "text": request.text,
+                "audio_file": str(cache_file),
+                "voice": request.voice,
+                "cache_hit": True,
+                "processing_time": 0.0
+            })
+        
         # Generate unique filename for the audio
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         base_filename = f"tts_{timestamp}_{unique_id}"
-        audio_output_path = AUDIO_OUTPUT_DIR / f"{base_filename}.mp3"
+        
+        # Determine output path based on whether caching is enabled
+        audio_output_path = cache_file if request.use_cache else AUDIO_OUTPUT_DIR / f"{base_filename}.mp3"
         
         # Generate speech
         start_time = time.time()
         
         # Apply voice selection if available
         voice_path = None
-        if request.voice != "default" and os.path.exists(MODEL_DIR / request.voice):
-            voice_path = str(MODEL_DIR / request.voice)
+        if request.voice != "default":
+            voice_info = get_voice_model_info(request.voice)
+            if voice_info and voice_info.get("voice_path"):
+                voice_path = voice_info["voice_path"]
+            elif os.path.exists(MODEL_DIR / f"{request.voice}.json"):
+                voice_path = str(MODEL_DIR / f"{request.voice}.json")
+            else:
+                print(f"Warning: Voice model '{request.voice}' not found")
         
         # Generate speech with Fish Speech TTS
         speech_data = fish_tts.text_to_speech(
@@ -169,6 +309,7 @@ async def synthesize_speech(request: TTSRequest):
             "text": request.text,
             "audio_file": str(audio_output_path),
             "voice": request.voice,
+            "cache_hit": False,
             "processing_time": processing_time
         })
     
@@ -177,7 +318,81 @@ async def synthesize_speech(request: TTSRequest):
         raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
 
 
+@app.get("/voices")
+async def list_voices():
+    """
+    Get a list of available voice models
+    """
+    try:
+        voices = list_voice_models()
+        voice_info = []
+        
+        print(f"Found voices: {voices}")  # Debug log
+        
+        for voice in voices:
+            info = get_voice_model_info(voice)
+            if info:
+                voice_info.append({
+                    "name": voice,
+                    "description": info.get("description", ""),
+                    "default_settings": info.get("default_settings", {})
+                })
+        
+        return JSONResponse({
+            "success": True,
+            "voices": voice_info
+        })
+    
+    except Exception as e:
+        print(f"Error listing voices: {e}")
+        # Return empty list instead of error
+        return JSONResponse({
+            "success": True,
+            "voices": [{"name": "default", "description": "Default voice", "default_settings": {"speed": 1.0, "pitch": 0.0}}]
+        })
+
+
+@app.get("/presets")
+async def list_voice_presets():
+    """
+    Get a list of available voice presets
+    """
+    try:
+        presets = list_presets()
+        preset_info = []
+        
+        for preset_name in presets:
+            preset_data = get_preset(preset_name)
+            if preset_data:
+                preset_info.append({
+                    "name": preset_name,
+                    "voice": preset_data.get("voice", "default"),
+                    "speed": preset_data.get("speed", 1.0),
+                    "pitch": preset_data.get("pitch", 0.0),
+                    "created_at": preset_data.get("created_at", "")
+                })
+        
+        return JSONResponse({
+            "success": True,
+            "presets": preset_info
+        })
+    
+    except Exception as e:
+        print(f"Error listing presets: {e}")
+        # Return empty list instead of error
+        return JSONResponse({
+            "success": True,
+            "presets": []
+        })
+
+
 if __name__ == "__main__":
     import uvicorn
 
+    # Make sure the configuration file exists
+    if not (MODEL_DIR / "voice_config.json").exists():
+        print("Creating default configuration...")
+        create_default_config()
+    
+    print("Starting Local TTS API...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
