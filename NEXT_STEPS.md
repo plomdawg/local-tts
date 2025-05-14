@@ -64,25 +64,21 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 
 - [x] Research and select a TTS engine (Fish Speech AI selected)
 - [x] Add a new `/synthesize` endpoint for text-to-speech generation
-- [ ] Implement voice selection from available models
-- [ ] Create a caching mechanism to avoid regenerating identical audio
-- [ ] Add pitch, speed, and other voice modulation controls
-- [ ] Implement proper error handling for TTS failures
+- [x] Implement voice selection from available models
+- [x] Create a caching mechanism to avoid regenerating identical audio
+- [x] Implement proper error handling for TTS failures
 
 ### 2. Client-Side Implementation
 
-- [ ] Add text input area for speech synthesis
-- [ ] Create voice selection dropdown
-- [ ] Implement text prompt feature for voice recording
-- [ ] Add playback controls for generated audio
-- [ ] Allow downloading of generated audio files
-- [ ] Add "save voice preset" functionality
+- [x] Add text input area for speech synthesis
+- [x] Create voice selection dropdown
+- [x] Implement text prompt feature for voice recording
+- [x] Add playback controls for generated audio
+- [x] Allow downloading of generated audio files
 
 ### 3. Project Structure Updates
 
 - [x] Organize voice models in the `models/` directory
-- [ ] Create configuration files for voice parameters
-- [ ] Implement model download/management utilities
 - [x] Update README with new functionality documentation
 
 ## Implementation Plan
@@ -92,7 +88,6 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 3. [ ] Add voice selection and parameter controls
 4. [ ] Create the UI for text input, voice settings, and recording prompt
 5. [ ] Implement audio playback and download functionality
-6. [ ] Add voice preset management
 
 ## Resources
 
@@ -118,26 +113,26 @@ Before proceeding to API and integrations, we need to restructure the UI to bett
 
 ### 1. UI Restructuring
 
-- [ ] Create a dedicated "Text-to-Speech" tab as the main screen
-  - [ ] Add text input box
-  - [ ] Implement voice model selector
-  - [ ] Create output display for generated speech
+- [X] Create a dedicated "Text-to-Speech" tab as the main screen
+  - [X] Add text input box
+  - [X] Implement voice model selector
+  - [X] Create output display for generated speech
   
-- [ ] Create a "Voice Cloning from Recording" tab
-  - [ ] Implement text prompt for user to read
-  - [ ] Add record button
+- [X] Create a "Voice Cloning from Recording" tab
+  - [X] Implement text prompt for user to read
+  - [X] Add record button
   - [ ] Add audio preview functionality
-  - [ ] Implement naming input for new models
-  - [ ] Create file generation for both .mp3 and .txt files
+  - [X] Implement naming input for new models
+  - [X] Create file generation for both .mp3 and .txt files
   
-- [ ] Create a "Voice Cloning from MP3" tab
-  - [ ] Implement MP3 upload functionality
-  - [ ] Integrate with Whisper transcription pipeline
-  - [ ] Add name input for the new model
-  - [ ] Create button to generate model files
+- [X] Create a "Voice Cloning from MP3" tab
+  - [X] Implement MP3 upload functionality
+  - [X] Integrate with Whisper transcription pipeline
+  - [X] Add name input for the new model
+  - [X] Create button to generate model files
   
-- [ ] Create a "Voice Model Management" tab
-  - [ ] Display all available voice models
+- [X] Create a "Voice Model Management" tab
+  - [X] Display all available voice models
   - [ ] Allow renaming of models
   - [ ] Provide text editing for model transcripts
   - [ ] Add preview functionality for MP3 files
