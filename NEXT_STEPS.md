@@ -74,14 +74,14 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 - [x] Implement text prompt feature for voice recording
 - [x] Add playback controls for generated audio
 - [x] Allow downloading of generated audio files
-- [ ] Add "save voice preset" functionality
+- [x] Add "save voice preset" functionality
 
 ### 3. Project Structure Updates
 
 - [x] Organize voice models in the `models/` directory
-- [ ] Create configuration files for voice parameters
-- [ ] Implement model download/management utilities
-- [ ] Update README with new functionality documentation
+- [x] Create configuration files for voice parameters
+- [x] Implement model download/management utilities
+- [x] Update README with new functionality documentation
 
 ## Implementation Plan
 
@@ -90,7 +90,7 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 3. [x] Add voice selection and parameter controls
 4. [x] Create the UI for text input, voice settings, and recording prompt
 5. [x] Implement audio playback and download functionality
-6. [ ] Add voice preset management
+6. [x] Add voice preset management
 
 ## Resources
 
@@ -105,4 +105,67 @@ The milestone will be considered complete when:
 - Users can use text prompts when recording voice samples
 - Voice samples can be used with Fish Speech AI for voice cloning
 - Generated audio can be played back and downloaded
-- The system handles errors gracefully 
+- The system handles errors gracefully
+
+# Next Steps: Milestone 4 - API & Integrations
+
+## Overview
+Now that we've completed Milestone 3 (Custom TTS), the next step is to finalize the API specification and implement integrations with other platforms like Discord and Home Assistant.
+
+## Tasks
+
+### 1. API Finalization
+
+- [ ] Create a comprehensive OpenAPI specification
+- [ ] Add API key authentication for secure access
+- [ ] Implement rate limiting for the API
+- [ ] Add detailed API documentation
+- [ ] Create example API calls and code snippets
+
+### 2. Discord Integration
+
+- [ ] Create a Discord bot using discord.py
+- [ ] Implement text-to-speech commands
+- [ ] Add voice recording and transcription features
+- [ ] Implement voice model selection commands
+- [ ] Add error handling and help commands
+
+### 3. Home Assistant Integration
+
+- [ ] Create a Home Assistant integration
+- [ ] Implement TTS service calls
+- [ ] Add media player integration for playback
+- [ ] Create configuration options for voice selection
+- [ ] Provide documentation for Home Assistant setup
+
+### 4. Final Touches
+
+- [ ] Add a web-based API playground
+- [ ] Create comprehensive end-user documentation
+- [ ] Implement usage statistics and monitoring
+- [ ] Perform security audit and testing
+- [ ] Create a deployment guide for production use
+
+## Implementation Plan
+
+1. [ ] Finalize and document the API
+2. [ ] Develop the Discord bot integration
+3. [ ] Create the Home Assistant integration
+4. [ ] Add final documentation and examples
+5. [ ] Test all integrations and fix any issues
+6. [ ] Release v1.0
+
+## Resources
+
+- [Discord.py Documentation](https://discordpy.readthedocs.io/)
+- [Home Assistant Developer Documentation](https://developers.home-assistant.io/)
+- [FastAPI Authentication](https://fastapi.tiangolo.com/tutorial/security/)
+- [OpenAPI Specification](https://swagger.io/specification/)
+
+## Success Criteria
+
+The milestone will be considered complete when:
+- The API is fully documented with OpenAPI
+- Users can interact with the system via Discord
+- The system integrates with Home Assistant for smart home voice applications
+- All integrations work reliably and securely 

@@ -5,6 +5,7 @@ import tempfile
 import os
 import json
 import glob
+from datetime import datetime
 
 
 def tts_call():
@@ -72,6 +73,74 @@ def get_available_voices():
     return voices
 
 
+def get_saved_presets():
+    """Get list of saved voice presets"""
+    preset_dir = os.path.join("models", "presets")
+    os.makedirs(preset_dir, exist_ok=True)
+    preset_files = glob.glob(os.path.join(preset_dir, "*.json"))
+    presets = []
+
+    for preset_file in preset_files:
+        preset_name = os.path.basename(preset_file).split(".")[0]
+        presets.append(preset_name)
+
+    return presets
+
+
+def load_preset(preset_name):
+    """Load a saved voice preset"""
+    if not preset_name:
+        return "default", 1.0, 0.0, "No preset selected"
+
+    preset_path = os.path.join("models", "presets", f"{preset_name}.json")
+
+    if not os.path.exists(preset_path):
+        return "default", 1.0, 0.0, f"Preset file not found: {preset_path}"
+
+    try:
+        with open(preset_path, "r") as f:
+            preset_data = json.load(f)
+
+        voice = preset_data.get("voice", "default")
+        speed = preset_data.get("speed", 1.0)
+        pitch = preset_data.get("pitch", 0.0)
+
+        return voice, speed, pitch, f"Preset '{preset_name}' loaded successfully"
+
+    except Exception as e:
+        return "default", 1.0, 0.0, f"Error loading preset: {str(e)}"
+
+
+def save_preset(preset_name, voice, speed, pitch):
+    """Save current voice settings as a preset"""
+    if not preset_name:
+        return "Please enter a name for the preset."
+
+    # Create presets directory if it doesn't exist
+    preset_dir = os.path.join("models", "presets")
+    os.makedirs(preset_dir, exist_ok=True)
+
+    preset_path = os.path.join(preset_dir, f"{preset_name}.json")
+
+    # Create preset data
+    preset_data = {
+        "voice": voice,
+        "speed": float(speed),
+        "pitch": float(pitch),
+        "created_at": datetime.now().isoformat()
+    }
+
+    try:
+        # Save preset to file
+        with open(preset_path, "w") as f:
+            json.dump(preset_data, f, indent=2)
+
+        return f"Voice preset '{preset_name}' saved successfully"
+
+    except Exception as e:
+        return f"Error saving preset: {str(e)}"
+
+
 def synthesize_speech(text, voice, speed, pitch):
     if not text:
         return "Please enter text to synthesize.", None
@@ -82,7 +151,7 @@ def synthesize_speech(text, voice, speed, pitch):
             "text": text,
             "voice": voice,
             "speed": float(speed),
-            "pitch": float(pitch),
+            "pitch": float(pitch)
         }
 
         # Send request to the synthesis endpoint
@@ -156,6 +225,32 @@ with gr.Blocks() as demo:
 
                 synthesize_btn = gr.Button("Generate Speech")
 
+                # Add preset management UI
+                gr.Markdown("## Voice Presets")
+
+                with gr.Row():
+                    preset_dropdown = gr.Dropdown(
+                        label="Load Preset",
+                        choices=get_saved_presets(),
+                        value=None,
+                        allow_custom_value=False
+                    )
+                    load_preset_btn = gr.Button("Load")
+
+                with gr.Row():
+                    preset_name = gr.Textbox(
+                        label="Save As",
+                        placeholder="Enter preset name",
+                        value=""
+                    )
+                    save_preset_btn = gr.Button("Save Current Settings")
+
+                preset_status = gr.Textbox(
+                    label="Preset Status",
+                    value="",
+                    lines=1
+                )
+
             with gr.Column():
                 gr.Markdown("## Generated Speech")
                 synthesis_status = gr.Textbox(label="Status", value="Ready", lines=1)
@@ -179,6 +274,23 @@ with gr.Blocks() as demo:
             fn=synthesize_speech,
             inputs=[tts_text, tts_voice, tts_speed, tts_pitch],
             outputs=[synthesis_status, synthesis_output],
+        )
+
+        # Add event handlers for preset management
+        load_preset_btn.click(
+            fn=load_preset,
+            inputs=[preset_dropdown],
+            outputs=[tts_voice, tts_speed, tts_pitch, preset_status]
+        )
+
+        save_preset_btn.click(
+            fn=save_preset,
+            inputs=[preset_name, tts_voice, tts_speed, tts_pitch],
+            outputs=[preset_status]
+        ).then(
+            fn=get_saved_presets,
+            inputs=[],
+            outputs=[preset_dropdown]
         )
 
     with gr.Tab("Transcription"):
