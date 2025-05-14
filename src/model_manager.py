@@ -4,13 +4,9 @@ Voice Model Management Utilities for Local TTS
 This module provides utilities for managing voice models, including:
 - Listing available voice models
 - Loading voice model metadata
-- Managing voice presets
 """
 
-import os
-import json
 import shutil
-from datetime import datetime
 from pathlib import Path
 import logging
 
@@ -22,33 +18,27 @@ logger = logging.getLogger("model_manager")
 
 # Constants
 MODEL_DIR = Path("models")
-PRESET_DIR = MODEL_DIR / "presets"
 
 # Ensure directories exist
 MODEL_DIR.mkdir(exist_ok=True)
-PRESET_DIR.mkdir(exist_ok=True)
 
 
 def list_voice_models():
     """List all available voice models by scanning the models directory"""
     voice_models = ["default"]  # Default voice is always available
 
-    # Scan for individual model folders
-    model_dirs = [d for d in MODEL_DIR.glob("*") if d.is_dir() and d.name != "presets"]
+    # Scan for model directories that contain both .mp3 and .txt files with matching names
+    model_dirs = [d for d in MODEL_DIR.glob("*") if d.is_dir()]
 
     for model_dir in model_dirs:
         model_name = model_dir.name
+        mp3_file = model_dir / f"{model_name}.mp3"
+        txt_file = model_dir / f"{model_name}.txt"
 
-        # Check if this folder has a json metadata file
-        json_file = model_dir / f"{model_name}.json"
-        if json_file.exists():
+        # Only include models that have both required files
+        if mp3_file.exists() and txt_file.exists():
             voice_models.append(model_name)
 
-    # Also look for standalone json files in the models root
-    for json_file in MODEL_DIR.glob("*.json"):
-        voice_models.append(json_file.stem)
-
-    logger.info(f"Found voice models: {voice_models}")
     return voice_models
 
 
@@ -61,28 +51,23 @@ def get_voice_model_info(voice_name):
             "default_settings": {"speed": 1.0, "pitch": 0.0},
         }
 
-    # Check if the model has its own directory with a json file
+    # Check if the model has its own directory with the required files
     model_dir = MODEL_DIR / voice_name
-    json_path = model_dir / f"{voice_name}.json"
+    mp3_path = model_dir / f"{voice_name}.mp3"
+    txt_path = model_dir / f"{voice_name}.txt"
 
-    # If no directory exists, check for standalone json file
-    if not json_path.exists():
-        json_path = MODEL_DIR / f"{voice_name}.json"
-
-    if not json_path.exists():
-        logger.warning(f"Voice model file not found: {json_path}")
+    if not (model_dir.exists() and mp3_path.exists() and txt_path.exists()):
+        logger.warning(f"Voice model files not found for: {voice_name}")
         return None
 
     try:
-        with open(json_path, "r") as f:
-            model_info = json.load(f)
-
-        # Ensure the model info has the required fields
-        if "default_settings" not in model_info:
-            model_info["default_settings"] = {"speed": 1.0, "pitch": 0.0}
-
-        # Make sure voice_path is set to the json file
-        model_info["voice_path"] = str(json_path)
+        # Build model info from the files
+        model_info = {
+            "name": voice_name,
+            "description": f"Voice model for {voice_name}",
+            "voice_path": str(mp3_path),
+            "default_settings": {"speed": 1.0, "pitch": 0.0},
+        }
 
         return model_info
 
@@ -92,35 +77,42 @@ def get_voice_model_info(voice_name):
 
 
 def add_voice_model(voice_name, description, voice_path, settings=None):
-    """Add a new voice model by creating or updating its JSON file"""
+    """Add a new voice model by copying audio and transcript files"""
     if voice_name == "default":
         logger.warning("Cannot modify the default voice model")
         return False
-
-    if settings is None:
-        settings = {"speed": 1.0, "pitch": 0.0}
 
     # Create model directory if it doesn't exist
     model_dir = MODEL_DIR / voice_name
     model_dir.mkdir(exist_ok=True)
 
-    # Create or update the model json file
-    json_path = model_dir / f"{voice_name}.json"
-
-    model_info = {
-        "name": voice_name,
-        "description": description,
-        "voice_path": voice_path,
-        "default_settings": settings,
-        "created_at": datetime.now().isoformat(),
-        "last_updated": datetime.now().isoformat(),
-    }
+    # This function should be used with consistent naming conventions
+    # voice_path should be the path to the source mp3 file
+    # There should also be a matching .txt file with the same basename
 
     try:
-        with open(json_path, "w") as f:
-            json.dump(model_info, f, indent=2)
+        # Determine source and destination paths
+        source_mp3 = Path(voice_path)
+        dest_mp3 = model_dir / f"{voice_name}.mp3"
 
-        logger.info(f"Voice model saved to {json_path}")
+        # Get the corresponding txt file (assumed to be in the same directory with same name)
+        source_txt = source_mp3.with_suffix(".txt")
+        dest_txt = model_dir / f"{voice_name}.txt"
+
+        # Copy the files if they exist
+        if source_mp3.exists():
+            shutil.copy2(source_mp3, dest_mp3)
+        else:
+            logger.error(f"Source MP3 file not found: {source_mp3}")
+            return False
+
+        if source_txt.exists():
+            shutil.copy2(source_txt, dest_txt)
+        else:
+            logger.error(f"Source text file not found: {source_txt}")
+            return False
+
+        logger.info(f"Voice model saved to {model_dir}")
         return True
 
     except Exception as e:
@@ -146,98 +138,11 @@ def remove_voice_model(voice_name):
         except Exception as e:
             logger.error(f"Error deleting voice model directory: {e}")
             return False
-    else:
-        # Otherwise, check for standalone json file
-        json_path = MODEL_DIR / f"{voice_name}.json"
-        if json_path.exists():
-            try:
-                os.remove(json_path)
-                logger.info(f"Deleted voice model file: {json_path}")
-                return True
-            except Exception as e:
-                logger.error(f"Error deleting voice model file: {e}")
-                return False
 
     logger.warning(f"Voice model not found: {voice_name}")
     return False
 
 
-def list_presets():
-    """List all available voice presets"""
-    preset_files = list(PRESET_DIR.glob("*.json"))
-    presets = []
-
-    for preset_file in preset_files:
-        preset_name = preset_file.stem
-        presets.append(preset_name)
-
-    return presets
-
-
-def get_preset(preset_name):
-    """Get a specific voice preset"""
-    preset_path = PRESET_DIR / f"{preset_name}.json"
-
-    if not preset_path.exists():
-        logger.warning(f"Preset not found: {preset_path}")
-        return None
-
-    try:
-        with open(preset_path, "r") as f:
-            preset = json.load(f)
-        return preset
-
-    except Exception as e:
-        logger.error(f"Error loading preset: {e}")
-        return None
-
-
-def save_preset(preset_name, voice, speed, pitch):
-    """Save a voice preset"""
-    if not preset_name:
-        logger.error("Preset name is required")
-        return False
-
-    preset_path = PRESET_DIR / f"{preset_name}.json"
-
-    preset_data = {
-        "voice": voice,
-        "speed": float(speed),
-        "pitch": float(pitch),
-        "created_at": datetime.now().isoformat(),
-    }
-
-    try:
-        with open(preset_path, "w") as f:
-            json.dump(preset_data, f, indent=2)
-
-        logger.info(f"Preset saved to {preset_path}")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error saving preset: {e}")
-        return False
-
-
-def delete_preset(preset_name):
-    """Delete a voice preset"""
-    preset_path = PRESET_DIR / f"{preset_name}.json"
-
-    if not preset_path.exists():
-        logger.warning(f"Preset not found: {preset_path}")
-        return False
-
-    try:
-        os.remove(preset_path)
-        logger.info(f"Preset deleted: {preset_path}")
-        return True
-
-    except Exception as e:
-        logger.error(f"Error deleting preset: {e}")
-        return False
-
-
 if __name__ == "__main__":
     # Test the module functionality
     print("Available voice models:", list_voice_models())
-    print("Available presets:", list_presets())
