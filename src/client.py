@@ -67,6 +67,31 @@ def transcribe_audio(audio_file):
     if audio_file is None:
         return "Please record or upload an audio file first.", None
 
+    # Validate the audio file
+    try:
+        # Check if file exists
+        if not os.path.exists(audio_file):
+            return "Error: Audio file does not exist.", None
+
+        # Check if file is not empty
+        file_size = os.path.getsize(audio_file)
+        if file_size == 0:
+            return (
+                "Error: The audio file is empty. Please record or upload a valid file.",
+                None,
+            )
+
+        # For very small files, they are likely corrupted or too short to be useful
+        if file_size < 1000:  # Less than 1 KB
+            return (
+                "Error: The audio file is too short or possibly corrupted. Please try again.",
+                None,
+            )
+
+        print(f"Transcribing audio file: {audio_file}, Size: {file_size} bytes")
+    except Exception as e:
+        return f"Error validating audio file: {str(e)}", None
+
     # Prepare the file for upload
     files = {"file": open(audio_file, "rb")}
 
@@ -215,6 +240,11 @@ def get_random_prompt():
 
 # Function to save voice model (shared between tabs)
 def save_voice_model(audio_file, prompt_text, name):
+    # Add debug logging
+    print(
+        f"Saving voice model - Audio file: {audio_file}, Size: {os.path.getsize(audio_file) if audio_file and os.path.exists(audio_file) else 'N/A'} bytes"
+    )
+
     # Validation checks with clear error messages
     if not audio_file:
         return "ERROR: Please record or upload an audio file first."
@@ -227,6 +257,42 @@ def save_voice_model(audio_file, prompt_text, name):
         return (
             "ERROR: Please transcribe the audio or provide a transcript before saving."
         )
+
+    # Check if the audio file exists and is not empty
+    try:
+        # Check if file exists
+        if not os.path.exists(audio_file):
+            return "ERROR: Audio file does not exist."
+
+        # Check if file is not empty
+        file_size = os.path.getsize(audio_file)
+        if file_size == 0:
+            return "ERROR: The recorded audio file is empty. Please record your voice again."
+
+        # For very small files, they are likely corrupted or too short to be useful
+        if file_size < 1000:  # Less than 1 KB
+            return "ERROR: The recorded audio is too short or possibly corrupted. Please record your voice again."
+
+        # Try to verify this is actually a valid audio file
+        try:
+            # Depending on the file type, try to open it to verify it's valid
+            if audio_file.endswith((".mp3", ".wav", ".m4a")):
+                try:
+                    # Try to use mutagen to read file info
+                    from mutagen import File
+
+                    audio = File(audio_file)
+                    if audio is None:
+                        return "ERROR: The audio file appears to be corrupted. Please record your voice again."
+                except ImportError:
+                    # If mutagen is not available, we'll just check file size as we did above
+                    pass
+        except Exception as e:
+            print(f"Warning: Could not verify audio file validity: {e}")
+            # We'll still try to proceed if this check fails
+
+    except Exception as e:
+        return f"ERROR: Failed to validate audio file: {str(e)}"
 
     try:
         # Create a directory for the voice model
@@ -276,18 +342,15 @@ def save_voice_model(audio_file, prompt_text, name):
             "description": f"Voice model for {name}",
             "audio_path": audio_path,
             "transcript_path": text_path,
-            "default_settings": {
-                "speed": 1.0,
-                "pitch": 0.0
-            },
-            "created_at": datetime.now().isoformat()
+            "default_settings": {"speed": 1.0, "pitch": 0.0},
+            "created_at": datetime.now().isoformat(),
         }
 
         model_json_path = os.path.join(voice_dir, f"{name}.json")
         with open(model_json_path, "w") as f:
             json.dump(model_info, f, indent=2)
 
-        # No need to register in config anymore - the new system automatically 
+        # No need to register in config anymore - the new system automatically
         # discovers models by scanning directories
 
         return f"SUCCESS: Voice model '{name}' saved successfully. Files saved to {voice_dir}"
@@ -414,7 +477,11 @@ with gr.Blocks() as demo:
                 random_prompt_btn = gr.Button("Get Random Prompt")
 
                 recorded_audio = gr.Audio(
-                    label="Record your voice", type="filepath", sources=["microphone"]
+                    label="Record your voice",
+                    type="filepath",
+                    sources=["microphone"],
+                    waveform_options={"show_controls": True},  # Show playback controls
+                    format="mp3",  # Ensure consistent format
                 )
 
                 voice_name = gr.Textbox(
@@ -537,12 +604,16 @@ with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column():
                 model_info = gr.JSON(label="Voice Model Information", value={})
-                
+
                 # Replace sample button with transcript and file details
                 gr.Markdown("### Voice Sample Details")
-                sample_transcript = gr.Textbox(label="Transcript", value="", lines=3, interactive=False)
-                sample_details = gr.Textbox(label="Audio File Details", value="", interactive=False)
-                
+                sample_transcript = gr.Textbox(
+                    label="Transcript", value="", lines=3, interactive=False
+                )
+                sample_details = gr.Textbox(
+                    label="Audio File Details", value="", interactive=False
+                )
+
                 # Keep the delete button
                 delete_model_btn = gr.Button("Delete Voice Model", variant="stop")
                 delete_status = gr.Textbox(label="Status", value="", interactive=False)
@@ -562,7 +633,11 @@ with gr.Blocks() as demo:
             try:
                 response = requests.get("http://localhost:8000/voices")
                 if response.status_code != 200:
-                    return {"error": f"Error fetching voices: {response.status_code}"}, "", ""
+                    return (
+                        {"error": f"Error fetching voices: {response.status_code}"},
+                        "",
+                        "",
+                    )
 
                 voices_data = response.json().get("voices", [])
 
@@ -573,11 +648,11 @@ with gr.Blocks() as demo:
 
                 if not voice_data:
                     return {"error": f"Voice model '{model_name}' not found"}, "", ""
-                
+
                 # Try to load the transcript and file details
                 transcript = "No transcript found"
                 file_details = "No file details available"
-                
+
                 # Search for voice model files
                 model_dir = os.path.join("models", model_name)
                 if os.path.exists(model_dir):
@@ -589,62 +664,74 @@ with gr.Blocks() as demo:
                                 transcript = f.read()
                         except Exception as e:
                             transcript = f"Error reading transcript: {str(e)}"
-                    
+
                     # Look for audio file and get details
                     audio_path = os.path.join(model_dir, f"{model_name}.mp3")
                     if os.path.exists(audio_path):
                         try:
                             file_size = os.path.getsize(audio_path)
                             file_size_mb = file_size / (1024 * 1024)
-                            
+
                             # Try to get audio duration with multiple fallbacks
                             duration = "Unknown"
                             duration_methods = []
-                            
+
                             # Method 1: Try mutagen MP3
                             try:
                                 from mutagen.mp3 import MP3
+
                                 audio = MP3(audio_path)
                                 if audio.info.length > 0:
                                     duration = f"{audio.info.length:.2f} seconds"
                                     duration_methods.append("mutagen.mp3")
                             except Exception as e:
                                 print(f"Mutagen MP3 error: {str(e)}")
-                            
+
                             # Method 2: Try mutagen File (generic)
                             if duration == "Unknown":
                                 try:
                                     from mutagen import File
+
                                     audio = File(audio_path)
-                                    if audio and hasattr(audio.info, 'length'):
+                                    if audio and hasattr(audio.info, "length"):
                                         duration = f"{audio.info.length:.2f} seconds"
                                         duration_methods.append("mutagen.File")
                                 except Exception as e:
                                     print(f"Mutagen File error: {str(e)}")
-                            
+
                             # Method 3: Try FFmpeg if available (via subprocess)
                             if duration == "Unknown":
                                 try:
                                     import subprocess
-                                    cmd = ["ffprobe", "-v", "error", "-show_entries", 
-                                           "format=duration", "-of", 
-                                           "default=noprint_wrappers=1:nokey=1", 
-                                           audio_path]
-                                    result = subprocess.run(cmd, capture_output=True, text=True)
+
+                                    cmd = [
+                                        "ffprobe",
+                                        "-v",
+                                        "error",
+                                        "-show_entries",
+                                        "format=duration",
+                                        "-of",
+                                        "default=noprint_wrappers=1:nokey=1",
+                                        audio_path,
+                                    ]
+                                    result = subprocess.run(
+                                        cmd, capture_output=True, text=True
+                                    )
                                     if result.returncode == 0 and result.stdout.strip():
                                         duration_secs = float(result.stdout.strip())
                                         duration = f"{duration_secs:.2f} seconds"
                                         duration_methods.append("ffprobe")
                                 except Exception as e:
                                     print(f"FFprobe error: {str(e)}")
-                            
+
                             # Method 4: Try wavio if available (for WAV files mistakenly named .mp3)
                             if duration == "Unknown":
                                 try:
                                     import wavio
                                     import numpy as np
+
                                     wave_read = wavio.read(audio_path)
-                                    if wave_read and hasattr(wave_read, 'rate'):
+                                    if wave_read and hasattr(wave_read, "rate"):
                                         samples = len(wave_read.data)
                                         sample_rate = wave_read.rate
                                         duration_secs = samples / sample_rate
@@ -652,7 +739,7 @@ with gr.Blocks() as demo:
                                         duration_methods.append("wavio")
                                 except Exception as e:
                                     print(f"Wavio error: {str(e)}")
-                            
+
                             # Method 5: Basic estimation using file size (very rough estimate)
                             if duration == "Unknown":
                                 # Calculate very rough estimate based on bitrate assumptions
@@ -661,22 +748,26 @@ with gr.Blocks() as demo:
                                     # MP3 at 128kbps = 16KB per second of audio
                                     # This is just a very approximate estimate
                                     bitrate = 128 * 1024  # 128kbps in bits per second
-                                    file_size_bits = file_size * 8  # Convert bytes to bits
+                                    file_size_bits = (
+                                        file_size * 8
+                                    )  # Convert bytes to bits
                                     duration_secs = file_size_bits / bitrate
-                                    duration = f"~{duration_secs:.2f} seconds (estimated)"
+                                    duration = (
+                                        f"~{duration_secs:.2f} seconds (estimated)"
+                                    )
                                     duration_methods.append("size-estimate")
                                 except Exception as e:
                                     print(f"Size estimation error: {str(e)}")
-                            
+
                             # If all methods fail, provide a helpful message
                             if duration == "Unknown":
                                 duration = "Unknown (MP3 may be non-standard format)"
-                            
+
                             # Add debug information about which method worked
                             method_info = ""
                             if duration_methods:
                                 method_info = f" (via {', '.join(duration_methods)})"
-                            
+
                             file_details = (
                                 f"File size: {file_size_mb:.2f} MB\n"
                                 f"Duration: {duration}{method_info}\n"
@@ -684,27 +775,27 @@ with gr.Blocks() as demo:
                             )
                         except Exception as e:
                             file_details = f"Error getting file details: {str(e)}"
-                
+
                 return voice_data, transcript, file_details
 
             except Exception as e:
                 return {"error": f"Error getting voice model info: {str(e)}"}, "", ""
-        
+
         # Function to delete voice model
         def delete_voice_model(model_name):
             if not model_name:
                 return "Please select a voice model to delete."
-            
+
             if model_name == "default":
                 return "Cannot delete the default voice model."
-            
+
             try:
                 # Call the delete endpoint
                 response = requests.delete(f"http://localhost:8000/voices/{model_name}")
-                
+
                 if response.status_code == 200:
                     result = response.json()
-                    
+
                     files_deleted = result.get("files_deleted", False)
                     if files_deleted:
                         return f"✅ Voice model '{model_name}' and associated files deleted successfully."
@@ -712,7 +803,7 @@ with gr.Blocks() as demo:
                         return f"✅ Voice model '{model_name}' removed from configuration. Some files may remain on disk."
                 else:
                     return f"❌ Error deleting voice model: {response.status_code} - {response.text}"
-            
+
             except Exception as e:
                 return f"❌ Error deleting voice model: {str(e)}"
 
@@ -723,21 +814,15 @@ with gr.Blocks() as demo:
 
         # Connect the voice model dropdown with the updated function
         voice_models_list.change(
-            fn=get_voice_model_info, 
-            inputs=[voice_models_list], 
-            outputs=[model_info, sample_transcript, sample_details]
+            fn=get_voice_model_info,
+            inputs=[voice_models_list],
+            outputs=[model_info, sample_transcript, sample_details],
         )
-        
+
         # Connect the delete button
         delete_model_btn.click(
-            fn=delete_voice_model, 
-            inputs=[voice_models_list], 
-            outputs=[delete_status]
-        ).then(
-            fn=refresh_voice_models,
-            inputs=[],
-            outputs=[voice_models_list]
-        )
+            fn=delete_voice_model, inputs=[voice_models_list], outputs=[delete_status]
+        ).then(fn=refresh_voice_models, inputs=[], outputs=[voice_models_list])
 
     with gr.Tab("Hello TTS"):
         with gr.Row():
@@ -754,6 +839,8 @@ with gr.Blocks() as demo:
                     label="Record or Upload Audio",
                     sources=["microphone", "upload"],
                     type="filepath",
+                    waveform_options={"show_controls": True},  # Show playback controls
+                    format="mp3"  # Ensure consistent format
                 )
 
                 transcribe_button = gr.Button("Transcribe")

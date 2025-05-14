@@ -84,7 +84,7 @@ def main():
 
     # Wait for client to start
     print("Waiting for client to start...")
-    time.sleep(3)
+    time.sleep(6)
 
     # Open web browser
     print("Opening web browser...")

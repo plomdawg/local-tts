@@ -2,8 +2,9 @@
 desktop.ini
 **/desktop.ini 
 
-# Ignore all pyc files
+# Ignore python files
 **/*.pyc
+.mypy/
 
 # Ignore user-generated files
 transcripts/
