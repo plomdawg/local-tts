@@ -4,3 +4,8 @@ desktop.ini
 
 # Ignore all pyc files
 **/*.pyc
+
+# Ignore user-generated files
+transcripts/
+uploads/
+models/
