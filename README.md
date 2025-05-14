@@ -60,37 +60,46 @@ python src/client.py
 
 ## Usage
 
-The application has three main tabs:
-
-### TTS Demo
-
-A simple demo that plays a pre-recorded "Hello" message.
+The application has four main tabs:
 
 ### Text-to-Speech Synthesis
 
 - Enter text in the text box
 - Select a voice model from the dropdown
-- Adjust speed and pitch settings
+- Adjust speed and pitch settings (if applicable)
 - Click "Generate Speech" to create audio
 - The generated audio will appear in the output section
-- You can save and load voice presets for quick access to your favorite settings
 
-### Transcription
+### Voice Cloning from Recording
 
-- Record audio using your microphone or upload an audio file
-- The text prompt provides a suggested script for voice recording
-- Click "Transcribe Audio" to convert speech to text
-- Download the transcript for use in voice cloning
+- A text prompt is displayed for you to read
+- Record your voice using the Record button
+- Preview your recording before uploading
+- Enter a name for your voice model
+- Click "Create Voice Model" to save your recording ([name].mp3) and the text ([name].txt)
+
+### Voice Cloning from MP3
+
+- Upload an existing MP3 file
+- The system will transcribe the audio using faster-whisper
+- Enter a name for your voice model
+- Click "Create Voice Model" to save the MP3 and generated transcript
+
+### Voice Model Management
+
+- View all available voice models
+- Rename existing models
+- Edit the text associated with a model
+- Preview voice models by playing their MP3 files
 
 ## Creating Custom Voices
 
-To create a custom voice model:
+Custom voices can be created through:
 
-1. Record a clean voice sample using the Transcription tab
-2. Save both the audio and transcript files
-3. Use the Fish Speech AI voice cloning tools to create a voice model (see [Fish Speech Documentation](https://speech.fish.audio/))
-4. Place the voice model JSON file in the `models` directory
-5. Refresh the application to see your voice in the dropdown
+1. The "Voice Cloning from Recording" tab where you record your voice
+2. The "Voice Cloning from MP3" tab where you upload an existing recording
+
+Once created, voice models will appear in the dropdown on the Text-to-Speech tab.
 
 ## API Documentation
 
@@ -136,11 +145,6 @@ The `model_manager.py` module provides utilities for managing voice models:
 - Download voice models from URLs
 - Save and load voice presets
 
-## Next Steps
+## Development Status
 
-This project is being developed in milestones:
-
-1. ✅ Hello TTS: Basic TTS prototype with FastAPI and Gradio
-2. ✅ Upload & ASR: Record/upload audio and transcribe using faster-whisper
-3. ✅ Custom TTS: Text-to-speech synthesis with Fish Speech AI and voice customization
-4. 🔄 API & Integrations: Finalize OpenAPI spec; demo calls from Discord & Home Assistant
+This project is being developed in milestones. Please refer to NEXT_STEPS.md for the current status and upcoming features.

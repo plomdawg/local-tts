@@ -20,7 +20,7 @@ Now that we've completed Milestone 1 (Hello TTS), the next step is to implement 
 - [x] Create file upload widget for existing audio files
 - [x] Display transcription results in a text area
 - [x] Allow downloading of transcription text
-- [x] Ensure the UI is responsive and user-friendly
+- [ ] Ensure the UI is responsive and user-friendly
 
 ### 3. Project Structure Updates
 
@@ -35,7 +35,7 @@ Now that we've completed Milestone 1 (Hello TTS), the next step is to implement 
 2. [x] Update the server to handle file uploads
 3. [x] Implement the transcription endpoint
 4. [x] Update the client UI
-5. [x] Test the full flow: record/upload → transcribe → save → display
+5. [ ] Test the full flow: record/upload → transcribe → save → display
 
 ## Resources
 
@@ -62,35 +62,35 @@ Now that we've completed Milestone 2 (Upload & ASR), the next step is to impleme
 
 - [x] Research and select a TTS engine (Fish Speech AI selected)
 - [x] Add a new `/synthesize` endpoint for text-to-speech generation
-- [x] Implement voice selection from available models
-- [x] Create a caching mechanism to avoid regenerating identical audio
-- [x] Add pitch, speed, and other voice modulation controls
-- [x] Implement proper error handling for TTS failures
+- [ ] Implement voice selection from available models
+- [ ] Create a caching mechanism to avoid regenerating identical audio
+- [ ] Add pitch, speed, and other voice modulation controls
+- [ ] Implement proper error handling for TTS failures
 
 ### 2. Client-Side Implementation
 
-- [x] Add text input area for speech synthesis
-- [x] Create voice selection dropdown
-- [x] Implement text prompt feature for voice recording
-- [x] Add playback controls for generated audio
-- [x] Allow downloading of generated audio files
-- [x] Add "save voice preset" functionality
+- [ ] Add text input area for speech synthesis
+- [ ] Create voice selection dropdown
+- [ ] Implement text prompt feature for voice recording
+- [ ] Add playback controls for generated audio
+- [ ] Allow downloading of generated audio files
+- [ ] Add "save voice preset" functionality
 
 ### 3. Project Structure Updates
 
 - [x] Organize voice models in the `models/` directory
-- [x] Create configuration files for voice parameters
-- [x] Implement model download/management utilities
+- [ ] Create configuration files for voice parameters
+- [ ] Implement model download/management utilities
 - [x] Update README with new functionality documentation
 
 ## Implementation Plan
 
 1. [x] Research and select TTS engine (Fish Speech AI)
-2. [x] Implement basic text-to-speech functionality using Fish Speech AI
-3. [x] Add voice selection and parameter controls
-4. [x] Create the UI for text input, voice settings, and recording prompt
-5. [x] Implement audio playback and download functionality
-6. [x] Add voice preset management
+2. [ ] Implement basic text-to-speech functionality using Fish Speech AI
+3. [ ] Add voice selection and parameter controls
+4. [ ] Create the UI for text input, voice settings, and recording prompt
+5. [ ] Implement audio playback and download functionality
+6. [ ] Add voice preset management
 
 ## Resources
 
@@ -107,10 +107,66 @@ The milestone will be considered complete when:
 - Generated audio can be played back and downloaded
 - The system handles errors gracefully
 
+# Next Steps: Milestone 3.5 - UI Restructuring
+
+## Overview
+Before proceeding to API and integrations, we need to restructure the UI to better match our intended workflow and provide a more intuitive experience for users.
+
+## Tasks
+
+### 1. UI Restructuring
+
+- [ ] Create a dedicated "Text-to-Speech" tab as the main screen
+  - [ ] Add text input box
+  - [ ] Implement voice model selector
+  - [ ] Create output display for generated speech
+  
+- [ ] Create a "Voice Cloning from Recording" tab
+  - [ ] Implement text prompt for user to read
+  - [ ] Add record button
+  - [ ] Add audio preview functionality
+  - [ ] Implement naming input for new models
+  - [ ] Create file generation for both .mp3 and .txt files
+  
+- [ ] Create a "Voice Cloning from MP3" tab
+  - [ ] Implement MP3 upload functionality
+  - [ ] Integrate with Whisper transcription pipeline
+  - [ ] Add name input for the new model
+  - [ ] Create button to generate model files
+  
+- [ ] Create a "Voice Model Management" tab
+  - [ ] Display all available voice models
+  - [ ] Allow renaming of models
+  - [ ] Provide text editing for model transcripts
+  - [ ] Add preview functionality for MP3 files
+
+### 2. Backend Updates
+
+- [ ] Update server endpoints to support the new UI structure
+- [ ] Create model management functionality
+- [ ] Implement voice model CRUD operations
+- [ ] Ensure all file operations work correctly
+
+## Implementation Plan
+
+1. [ ] Design the new UI structure
+2. [ ] Implement each tab one by one
+3. [ ] Update the server to support all required operations
+4. [ ] Test the full workflow across all tabs
+5. [ ] Refine the user experience based on testing feedback
+
+## Success Criteria
+
+The milestone will be considered complete when:
+- The application has four distinct tabs as described
+- Each tab functions correctly and performs its intended purpose
+- Voice models can be created, edited, and used for text-to-speech
+- The UI is intuitive and responsive
+
 # Next Steps: Milestone 4 - API & Integrations
 
 ## Overview
-Now that we've completed Milestone 3 (Custom TTS), the next step is to finalize the API specification and implement integrations with other platforms like Discord and Home Assistant.
+After completing the UI restructuring, the next step is to finalize the API specification and implement integrations with other platforms like Discord and Home Assistant.
 
 ## Tasks
 
