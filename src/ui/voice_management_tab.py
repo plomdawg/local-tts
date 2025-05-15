@@ -19,8 +19,8 @@ def create_voice_management_tab():
         gr.Markdown("## Voice Model Management")
         gr.Markdown("View and edit your voice models.")
 
-        # Create the model grid
-        model_cards_container, selected_model = create_model_grid()
+        # Create the model grid and get the selected model state
+        model_cards_container, selected_model = create_model_grid(gr.State(""))
 
         with gr.Row():
             refresh_models_btn = gr.Button("Refresh Models 🔄", size="sm", min_width=50)
