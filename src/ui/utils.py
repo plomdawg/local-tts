@@ -7,6 +7,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 import tempfile
+import shutil
 
 from core.model_manager import VoiceModel, list_voice_models
 from core.config import MODEL_DIR
@@ -132,8 +133,6 @@ def save_voice_model(audio_file, prompt_text, name):
                 return "ERROR: Failed to save voice model."
 
     except Exception as e:
-        import traceback
-
         return f"ERROR: Failed to save voice model: {str(e)}"
 
 
@@ -198,3 +197,90 @@ def create_model_grid(selected_voice_state=None):
                         )
 
     return model_cards_container, selected_voice_state
+
+
+def load_model_details(model_name):
+    """
+    Load details for a voice model.
+
+    Args:
+        model_name: Name of the model to load
+
+    Returns:
+        tuple: (image_path, name, transcript, image_path)
+    """
+    if not model_name:
+        return None, "", "", None
+
+    model = VoiceModel.from_name(model_name)
+    if not model:
+        return None, "", "", None
+
+    return (
+        model.image_path if model.has_image else None,
+        model.name,
+        model.transcript if model.has_transcript else "",
+        model.image_path if model.has_image else None,
+    )
+
+
+def update_model_image(model_name, new_image_path):
+    """
+    Update the image for a voice model.
+
+    Args:
+        model_name: Name of the model to update
+        new_image_path: Path to the new image file
+
+    Returns:
+        str: Status message
+    """
+    if not model_name or not new_image_path:
+        return "Please select a model and provide a new image."
+
+    try:
+        model = VoiceModel.from_name(model_name)
+        if not model:
+            return "Model not found."
+
+        # Copy the new image
+        shutil.copy2(new_image_path, model.image_path)
+        return f"Image updated for model '{model_name}'"
+
+    except Exception as e:
+        return f"Error updating image: {str(e)}"
+
+
+def update_model_details(model_name, new_name, new_transcript):
+    """
+    Update the details for a voice model.
+
+    Args:
+        model_name: Name of the model to update
+        new_name: New name for the model
+        new_transcript: New transcript text
+
+    Returns:
+        str: Status message
+    """
+    if not model_name:
+        return "Please select a model to edit."
+
+    try:
+        model = VoiceModel.from_name(model_name)
+        if not model:
+            return "Model not found."
+
+        # Update name if changed
+        if new_name and new_name != model_name:
+            model.rename(new_name)
+
+        # Update transcript if changed
+        if new_transcript:
+            with open(model.text_path, "w", encoding="utf-8") as f:
+                f.write(new_transcript)
+
+        return f"Model '{model_name}' updated successfully"
+
+    except Exception as e:
+        return f"Error updating model: {str(e)}"

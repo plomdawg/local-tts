@@ -60,6 +60,23 @@ class VoiceModel:
         """Check if the voice model has a sample audio file."""
         return self.sample_path is not None and self.sample_path.exists()
 
+    @property
+    def has_transcript(self) -> bool:
+        """Check if the voice model has a transcript file."""
+        return self.transcript_path is not None and self.transcript_path.exists()
+
+    @property
+    def transcript(self) -> str:
+        """Get the transcript text from the model's transcript file."""
+        if not self.has_transcript:
+            return ""
+        try:
+            with open(self.transcript_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logger.error(f"Error reading transcript: {e}")
+            return ""
+
     def get_transcript(self) -> str:
         """Get the transcript text from the model's transcript file."""
         if self.name == "default":
@@ -115,6 +132,88 @@ class VoiceModel:
         """Get the transcript and audio details for display."""
         return self.get_transcript(), self.get_audio_details()
 
+    def rename(self, new_name: str) -> bool:
+        """Rename the voice model and its associated files."""
+        if self.name == "default":
+            logger.warning("Cannot rename the default voice model")
+            return False
+
+        try:
+            old_dir = MODEL_DIR / self.name
+            new_dir = MODEL_DIR / new_name
+
+            if new_dir.exists():
+                logger.error(f"Voice model '{new_name}' already exists")
+                return False
+
+            # Rename the directory
+            old_dir.rename(new_dir)
+
+            # Update paths
+            self.name = new_name
+            self.voice_path = new_dir / f"{new_name}.mp3"
+            self.transcript_path = new_dir / f"{new_name}.txt"
+            self.preview_path = new_dir / "preview.mp3"
+            self.image_path = new_dir / f"{new_name}.png"
+            self.sample_path = new_dir / "sample.mp3"
+
+            logger.info(f"Renamed voice model from '{self.name}' to '{new_name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error renaming voice model: {e}")
+            return False
+
+    def update_image(self, new_image_path: Union[str, Path]) -> bool:
+        """Update the model's image file."""
+        if self.name == "default":
+            logger.warning("Cannot modify the default voice model")
+            return False
+
+        try:
+            new_image_path = Path(new_image_path)
+            if not new_image_path.exists():
+                logger.error(f"New image file not found: {new_image_path}")
+                return False
+
+            # Ensure model directory exists
+            model_dir = MODEL_DIR / self.name
+            model_dir.mkdir(exist_ok=True)
+
+            # Update image path and copy file
+            self.image_path = model_dir / f"{self.name}.png"
+            shutil.copy2(new_image_path, self.image_path)
+
+            logger.info(f"Updated image for voice model '{self.name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating model image: {e}")
+            return False
+
+    def update_transcript(self, new_transcript: str) -> bool:
+        """Update the model's transcript file."""
+        if self.name == "default":
+            logger.warning("Cannot modify the default voice model")
+            return False
+
+        try:
+            # Ensure model directory exists
+            model_dir = MODEL_DIR / self.name
+            model_dir.mkdir(exist_ok=True)
+
+            # Update transcript path and write file
+            self.transcript_path = model_dir / f"{self.name}.txt"
+            with open(self.transcript_path, "w", encoding="utf-8") as f:
+                f.write(new_transcript)
+
+            logger.info(f"Updated transcript for voice model '{self.name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating model transcript: {e}")
+            return False
+
     @classmethod
     def create_default(cls) -> "VoiceModel":
         """Create the default voice model instance."""
@@ -125,7 +224,7 @@ class VoiceModel:
             voice_path=None,
             transcript_path=None,
             preview_path=None,
-            image_path= MODEL_DIR / name / f"{name}.png",
+            image_path=MODEL_DIR / name / f"{name}.png",
             sample_path=None,
         )
 

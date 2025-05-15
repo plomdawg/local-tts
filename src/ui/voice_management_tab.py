@@ -3,7 +3,6 @@ Voice management tab UI component.
 """
 
 import gradio as gr
-import shutil
 
 from core.model_manager import VoiceModel
 from ui.utils import create_model_grid
@@ -21,7 +20,7 @@ def create_voice_management_tab():
         gr.Markdown("View and edit your voice models.")
 
         # Create the model grid
-        model_cards_container, _ = create_model_grid()
+        model_cards_container, selected_model = create_model_grid()
 
         with gr.Row():
             refresh_models_btn = gr.Button("Refresh Models 🔄", size="sm", min_width=50)
@@ -31,13 +30,6 @@ def create_voice_management_tab():
 
         with gr.Row():
             with gr.Column(scale=1):
-                # Model selection
-                selected_model = gr.Dropdown(
-                    label="Select Model to Edit",
-                    choices=[],
-                    interactive=True,
-                )
-
                 # Model image
                 model_image = gr.Image(
                     label="Model Image",
@@ -73,11 +65,7 @@ def create_voice_management_tab():
                 update_model_btn = gr.Button("Update Model", variant="primary")
                 status_output = gr.Textbox(label="Status", interactive=False)
 
-        def update_model_list():
-            models = [model.name for model in VoiceModel.list_models()]
-            return gr.update(choices=models)
-
-        def load_model(model_name):
+        def load_model_details(model_name):
             if not model_name:
                 return None, "", "", None
 
@@ -88,7 +76,7 @@ def create_voice_management_tab():
             return (
                 model.image_path if model.has_image else None,
                 model.name,
-                model.transcript if model.has_transcript else "",
+                model.transcript,
                 model.image_path if model.has_image else None,
             )
 
@@ -96,50 +84,42 @@ def create_voice_management_tab():
             if not model_name or not new_image_path:
                 return "Please select a model and provide a new image."
 
-            try:
-                model = VoiceModel.from_name(model_name)
-                if not model:
-                    return "Model not found."
+            model = VoiceModel.from_name(model_name)
+            if not model:
+                return "Model not found."
 
-                # Copy the new image
-                shutil.copy2(new_image_path, model.image_path)
+            if model.update_image(new_image_path):
                 return f"Image updated for model '{model_name}'"
-
-            except Exception as e:
-                return f"Error updating image: {str(e)}"
+            return f"Failed to update image for model '{model_name}'"
 
         def update_model_details(model_name, new_name, new_transcript):
             if not model_name:
                 return "Please select a model to edit."
 
-            try:
-                model = VoiceModel.from_name(model_name)
-                if not model:
-                    return "Model not found."
+            model = VoiceModel.from_name(model_name)
+            if not model:
+                return "Model not found."
 
-                # Update name if changed
-                if new_name and new_name != model_name:
-                    model.rename(new_name)
+            success = True
+            if new_name and new_name != model_name:
+                success = model.rename(new_name) and success
 
-                # Update transcript if changed
-                if new_transcript:
-                    with open(model.text_path, "w", encoding="utf-8") as f:
-                        f.write(new_transcript)
+            if new_transcript:
+                success = model.update_transcript(new_transcript) and success
 
+            if success:
                 return f"Model '{model_name}' updated successfully"
-
-            except Exception as e:
-                return f"Error updating model: {str(e)}"
+            return f"Failed to update model '{model_name}'"
 
         # Connect the buttons
         refresh_models_btn.click(
-            fn=update_model_list,
+            fn=lambda: gr.update(),
             inputs=[],
-            outputs=[selected_model],
+            outputs=[model_cards_container],
         )
 
         selected_model.change(
-            fn=load_model,
+            fn=load_model_details,
             inputs=[selected_model],
             outputs=[model_image, model_name, model_transcript, new_image],
         )
@@ -154,13 +134,6 @@ def create_voice_management_tab():
             fn=update_model_details,
             inputs=[selected_model, model_name, model_transcript],
             outputs=[status_output],
-        )
-
-        # Initialize the model list
-        management_tab.load(
-            fn=update_model_list,
-            inputs=[],
-            outputs=[selected_model],
         )
 
     return management_tab
