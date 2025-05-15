@@ -3,126 +3,98 @@ Voice Upload tab UI component.
 """
 
 import gradio as gr
+import shutil
 import requests
-from ui.utils import save_voice_model, format_status
 from core.model_manager import VoiceModel
 
 
 def create_voice_upload_tab():
     """
-    Create the Voice Cloning from MP3 tab
+    Create the voice upload tab for uploading existing voice samples.
 
     Returns:
-        dict: A dictionary of UI components
+        gradio.TabItem: The voice upload tab component
     """
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("## Upload Audio File")
+    with gr.Blocks() as upload_tab:
+        gr.Markdown("## Voice Upload")
+        gr.Markdown(
+            "Upload an existing audio file to create a custom voice model. The audio will be automatically transcribed."
+        )
 
-            uploaded_audio = gr.Audio(
-                label="Upload an MP3 or WAV file", type="filepath"
-            )
+        # File upload interface
+        with gr.Row():
+            with gr.Column(scale=1):
+                audio_input = gr.Audio(
+                    label="Upload Audio File",
+                    type="filepath",
+                    format="mp3",
+                )
+                audio_output = gr.Audio(
+                    label="Preview Audio",
+                    type="filepath",
+                    interactive=False,
+                )
 
-            uploaded_transcript = gr.Textbox(
-                label="Transcription (auto-generated or edit manually)",
-                placeholder="Transcription will appear here after uploading audio",
-                lines=5,
-            )
+            with gr.Column(scale=1):
+                # Model name input
+                model_name = gr.Textbox(
+                    label="Voice Model Name",
+                    placeholder="Enter a name for your voice model",
+                )
 
-            transcribe_btn = gr.Button("Transcribe Audio")
+                # Optional image upload
+                model_image = gr.Image(
+                    label="Voice Model Image (Optional)",
+                    type="filepath",
+                    height=200,
+                    width=200,
+                )
 
-            upload_voice_name = gr.Textbox(
-                label="Name for your voice model",
-                placeholder="Enter a name for your voice model",
-                value="",
-            )
+                create_model_btn = gr.Button("Create Voice Model", variant="primary")
+                status_output = gr.Textbox(label="Status", interactive=False)
 
-            # Save button
-            save_upload_btn = gr.Button("Save Voice Model")
+        def create_voice_model(audio_path, name, image_path=None):
+            if not audio_path or not name:
+                return "Please provide both an audio file and a model name."
 
-            upload_save_status = gr.Textbox(
-                label="Status",
-                value="",
-                interactive=False,
-                lines=2,
-                elem_id="upload_save_status",  # Add elem_id for potential CSS styling
-            )
+            try:
+                # Create the model directory
+                model = VoiceModel(name)
+                model_dir = model.model_dir
+                model_dir.mkdir(parents=True, exist_ok=True)
 
-    # Function to process transcription results before displaying
-    def process_transcription(audio_file):
-        if not audio_file:
-            return "", "❌ Please upload an audio file first."
+                # Copy the audio file
+                shutil.copy2(audio_path, model.audio_path)
 
-        # Validate the audio file first
-        is_valid, error_msg = VoiceModel.validate_audio_file(audio_file)
-        if not is_valid:
-            return "", f"❌ {error_msg}"
+                # Copy the image file if provided
+                if image_path:
+                    shutil.copy2(image_path, model.image_path)
 
-        transcript, file_path = transcribe_audio(audio_file)
+                # Transcribe the audio
+                with open(audio_path, "rb") as f:
+                    files = {"file": f}
+                    response = requests.post(
+                        "http://localhost:8000/transcribe", files=files
+                    )
 
-        # Simplified check for transcription success
-        if (
-            transcript
-            and not transcript.startswith("Error")
-            and not transcript.startswith("Transcription error")
-        ):
-            return (
-                transcript,
-                "✅ Transcription complete. You can now save the voice model.",
-            )
+                if response.status_code != 200:
+                    return f"Error transcribing audio: {response.text}"
 
-        # Only return the transcript text, not the file path
-        return transcript, "❌ Error during transcription. Please try again."
+                # Save the transcription
+                transcription = response.json().get("text", "")
+                with open(model.text_path, "w", encoding="utf-8") as f:
+                    f.write(transcription)
 
-    # Function to call the transcription API
-    def transcribe_audio(audio_file):
-        if audio_file is None:
-            return "Please upload an audio file first.", None
+                return f"Voice model '{name}' created successfully!"
 
-        # Prepare the file for upload
-        files = {"file": open(audio_file, "rb")}
+            except Exception as e:
+                return f"Error creating voice model: {str(e)}"
 
-        try:
-            # Send the file to the transcription endpoint
-            response = requests.post(
-                "http://localhost:8000/transcription/transcribe", files=files
-            )
+        # Connect the create button
+        create_model_btn.click(
+            fn=create_voice_model,
+            inputs=[audio_input, model_name, model_image],
+            outputs=[status_output],
+        )
 
-            # Check if the request was successful
-            if response.status_code != 200:
-                return f"Error: {response.status_code} - {response.text}", None
-
-            # Parse the JSON response
-            result = response.json()
-
-            # Return the transcript and file path
-            transcript = result.get("transcript", "No transcript returned")
-            transcript_file = result.get("transcript_file", "")
-
-            # Don't return a tuple representation to the UI
-            return transcript, transcript_file
-        except Exception as e:
-            return f"Transcription error: {str(e)}", None
-
-    # Connect the transcribe button
-    transcribe_btn.click(
-        fn=process_transcription,
-        inputs=[uploaded_audio],
-        outputs=[uploaded_transcript, upload_save_status],
-    )
-
-    # Connect the save upload button with status formatting
-    save_upload_btn.click(
-        fn=lambda *args: format_status(save_voice_model(*args)),
-        inputs=[uploaded_audio, uploaded_transcript, upload_voice_name],
-        outputs=[upload_save_status],
-    )
-
-    return {
-        "uploaded_audio": uploaded_audio,
-        "uploaded_transcript": uploaded_transcript,
-        "transcribe_btn": transcribe_btn,
-        "upload_voice_name": upload_voice_name,
-        "save_upload_btn": save_upload_btn,
-        "upload_save_status": upload_save_status,
-    }
+    return upload_tab

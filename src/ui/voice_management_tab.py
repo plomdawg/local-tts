@@ -1,120 +1,166 @@
 """
-Voice Model Management tab UI component.
+Voice management tab UI component.
 """
 
 import gradio as gr
-import requests
+import shutil
 
-from core.model_manager import VoiceModel, list_voice_models
+from core.model_manager import VoiceModel
+from ui.utils import create_model_grid
 
 
 def create_voice_management_tab():
     """
-    Create the Voice Model Management tab
+    Create the voice management tab for viewing and editing voice models.
 
     Returns:
-        dict: A dictionary of UI components
+        gradio.TabItem: The voice management tab component
     """
-    gr.Markdown("## Available Voice Models")
+    with gr.Blocks() as management_tab:
+        gr.Markdown("## Voice Model Management")
+        gr.Markdown("View and edit your voice models.")
 
-    with gr.Row():
-        refresh_models_btn = gr.Button("Refresh Voice Models")
-        voice_models_list = gr.Dropdown(
-            label="Select a voice model", choices=list_voice_models(), value=None
+        # Create the model grid
+        model_cards_container, _ = create_model_grid()
+
+        with gr.Row():
+            refresh_models_btn = gr.Button("Refresh Models 🔄", size="sm", min_width=50)
+
+        # Model editing section
+        gr.Markdown("## Edit Voice Model")
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                # Model selection
+                selected_model = gr.Dropdown(
+                    label="Select Model to Edit",
+                    choices=[],
+                    interactive=True,
+                )
+
+                # Model image
+                model_image = gr.Image(
+                    label="Model Image",
+                    type="filepath",
+                    height=200,
+                    width=200,
+                )
+
+                # Image upload
+                new_image = gr.Image(
+                    label="Upload New Image",
+                    type="filepath",
+                    height=200,
+                    width=200,
+                )
+
+                update_image_btn = gr.Button("Update Image", variant="primary")
+
+            with gr.Column(scale=1):
+                # Model name
+                model_name = gr.Textbox(
+                    label="Model Name",
+                    interactive=True,
+                )
+
+                # Model transcript
+                model_transcript = gr.Textbox(
+                    label="Model Transcript",
+                    lines=5,
+                    interactive=True,
+                )
+
+                update_model_btn = gr.Button("Update Model", variant="primary")
+                status_output = gr.Textbox(label="Status", interactive=False)
+
+        def update_model_list():
+            models = [model.name for model in VoiceModel.list_models()]
+            return gr.update(choices=models)
+
+        def load_model(model_name):
+            if not model_name:
+                return None, "", "", None
+
+            model = VoiceModel.from_name(model_name)
+            if not model:
+                return None, "", "", None
+
+            return (
+                model.image_path if model.has_image else None,
+                model.name,
+                model.transcript if model.has_transcript else "",
+                model.image_path if model.has_image else None,
+            )
+
+        def update_model_image(model_name, new_image_path):
+            if not model_name or not new_image_path:
+                return "Please select a model and provide a new image."
+
+            try:
+                model = VoiceModel.from_name(model_name)
+                if not model:
+                    return "Model not found."
+
+                # Copy the new image
+                shutil.copy2(new_image_path, model.image_path)
+                return f"Image updated for model '{model_name}'"
+
+            except Exception as e:
+                return f"Error updating image: {str(e)}"
+
+        def update_model_details(model_name, new_name, new_transcript):
+            if not model_name:
+                return "Please select a model to edit."
+
+            try:
+                model = VoiceModel.from_name(model_name)
+                if not model:
+                    return "Model not found."
+
+                # Update name if changed
+                if new_name and new_name != model_name:
+                    model.rename(new_name)
+
+                # Update transcript if changed
+                if new_transcript:
+                    with open(model.text_path, "w", encoding="utf-8") as f:
+                        f.write(new_transcript)
+
+                return f"Model '{model_name}' updated successfully"
+
+            except Exception as e:
+                return f"Error updating model: {str(e)}"
+
+        # Connect the buttons
+        refresh_models_btn.click(
+            fn=update_model_list,
+            inputs=[],
+            outputs=[selected_model],
         )
 
-    with gr.Row():
-        with gr.Column():
-            # Replace JSON info with simple model details
-            gr.Markdown("### Voice Sample Details")
-            sample_transcript = gr.Textbox(
-                label="Transcript", value="", lines=3, interactive=False
-            )
-            sample_details = gr.Textbox(
-                label="Audio File Details", value="", interactive=False
-            )
+        selected_model.change(
+            fn=load_model,
+            inputs=[selected_model],
+            outputs=[model_image, model_name, model_transcript, new_image],
+        )
 
-            delete_password = gr.Textbox(
-                label="Password for deletion",
-                type="password",
-                placeholder="Enter password to authorize deletion",
-                value="",
-            )
-            delete_model_btn = gr.Button("Delete Voice Model", variant="stop")
-            delete_status = gr.Textbox(label="Status", value="", interactive=False)
+        update_image_btn.click(
+            fn=update_model_image,
+            inputs=[selected_model, new_image],
+            outputs=[status_output],
+        )
 
-    # Function to get voice model info and load transcript/details
-    def get_voice_model_info(model_name):
-        if not model_name:
-            return "", ""
+        update_model_btn.click(
+            fn=update_model_details,
+            inputs=[selected_model, model_name, model_transcript],
+            outputs=[status_output],
+        )
 
-        try:
-            model = VoiceModel.from_name(model_name)
-            if not model:
-                return "Error: Voice model not found", "Error: Voice model not found"
+        # Initialize the model list
+        management_tab.load(
+            fn=update_model_list,
+            inputs=[],
+            outputs=[selected_model],
+        )
 
-            return model.get_display_info()
-
-        except Exception as e:
-            return f"Error getting voice model info: {str(e)}", ""
-
-    # Function to delete voice model
-    def delete_voice_model(model_name, password):
-        if not model_name:
-            return "Please select a voice model to delete."
-
-        if model_name == "default":
-            return "Cannot delete the default voice model."
-
-        # Simple password check - you can change this to your preferred password
-        expected_password = "password"
-        if password != expected_password:
-            return "❌ Incorrect password. Voice model deletion not authorized."
-
-        try:
-            model = VoiceModel.from_name(model_name)
-            if not model:
-                return f"❌ Error: Voice model '{model_name}' not found."
-
-            if model.delete():
-                return f"✅ Voice model '{model_name}' deleted successfully."
-            else:
-                return f"❌ Error deleting voice model '{model_name}'."
-
-        except Exception as e:
-            return f"❌ Error deleting voice model: {str(e)}"
-
-    # Function to refresh voice models
-    def refresh_voice_models():
-        voices = list_voice_models()
-        print(f"Refreshed voices: {voices}")  # Debug print
-        return gr.Dropdown(choices=voices)
-
-    # Connect the refresh button
-    refresh_models_btn.click(
-        fn=refresh_voice_models, inputs=[], outputs=[voice_models_list]
-    )
-
-    # Connect the voice model dropdown with the updated function
-    voice_models_list.change(
-        fn=get_voice_model_info,
-        inputs=[voice_models_list],
-        outputs=[sample_transcript, sample_details],
-    )
-
-    # Connect the delete button
-    delete_model_btn.click(
-        fn=delete_voice_model,
-        inputs=[voice_models_list, delete_password],
-        outputs=[delete_status],
-    ).then(fn=refresh_voice_models, inputs=[], outputs=[voice_models_list])
-
-    return {
-        "refresh_models_btn": refresh_models_btn,
-        "voice_models_list": voice_models_list,
-        "sample_transcript": sample_transcript,
-        "sample_details": sample_details,
-        "delete_password": delete_password,
-        "delete_model_btn": delete_model_btn,
-        "delete_status": delete_status,
-    }
+    return management_tab

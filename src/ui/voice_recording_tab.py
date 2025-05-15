@@ -3,6 +3,8 @@ Voice Recording tab UI component.
 """
 
 import gradio as gr
+from pathlib import Path
+import shutil
 from ui.utils import get_random_prompt, save_voice_model, format_status, DEFAULT_PROMPT
 from core.model_manager import VoiceModel
 

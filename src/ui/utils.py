@@ -10,6 +10,7 @@ import tempfile
 
 from core.model_manager import VoiceModel, list_voice_models
 from core.config import MODEL_DIR
+import gradio as gr
 
 
 def get_available_voices():
@@ -138,3 +139,62 @@ def save_voice_model(audio_file, prompt_text, name):
 
 # Default prompt text for voice recording
 DEFAULT_PROMPT = "The quick brown fox jumps over the lazy dog. I'm recording this voice sample to create a custom voice for text-to-speech synthesis with Fish Speech AI. This technology can clone voices with just a short audio sample and matching text transcription."
+
+
+def create_model_grid(selected_voice_state=None):
+    """
+    Create a grid of voice model cards that can be used across different tabs.
+
+    Args:
+        selected_voice_state: Optional gr.State to store the selected voice name
+
+    Returns:
+        tuple: (model_cards_container, selected_voice_state)
+    """
+    # Create a container for the model cards
+    model_cards_container = gr.Column()
+
+    # Create the model cards
+    with model_cards_container:
+        with gr.Row(equal_height=True):
+            for model_name in list_voice_models():
+                model = VoiceModel.from_name(model_name)
+                if not model:
+                    continue
+
+                with gr.Column(min_width=75, scale=1):
+                    # Combined image and button component
+                    with gr.Group(elem_classes=["model-card"]):
+                        gr.Image(
+                            value=model.image_path if model.has_image else None,
+                            label=model_name,
+                            show_label=False,
+                            height=75,
+                            width=75,
+                            interactive=False,
+                            elem_classes=["model-image"],
+                        )
+                        select_btn = gr.Button(
+                            model_name,
+                            size="sm",
+                            min_width=75,
+                            variant="secondary",
+                            elem_classes=["model-button"],
+                        )
+                        if selected_voice_state:
+                            select_btn.click(
+                                fn=lambda x=model_name: x,
+                                inputs=[],
+                                outputs=[selected_voice_state],
+                            )
+
+                    # Sample audio player below image+button
+                    if model.has_sample:
+                        gr.Audio(
+                            value=str(model.sample_path),
+                            label="Sample",
+                            show_label=True,
+                            interactive=False,
+                        )
+
+    return model_cards_container, selected_voice_state

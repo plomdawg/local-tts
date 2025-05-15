@@ -5,9 +5,9 @@ Text-to-Speech tab UI component.
 import gradio as gr
 import requests
 from pathlib import Path
-from typing import List, Dict
 
-from core.model_manager import list_voice_models, VoiceModel
+from core.model_manager import VoiceModel
+from ui.utils import create_model_grid
 
 
 def create_tts_tab():
@@ -43,7 +43,7 @@ def create_tts_tab():
                 gr.Markdown("## Text Input")
                 tts_text = gr.Textbox(
                     label="Text to Synthesize",
-                    value="Hello, this is a test of the Fish Speech AI text-to-speech system.",
+                    value="Hello, this is an example of the plom text-to-speech system.",
                     lines=5,
                     placeholder="Enter text to synthesize into speech",
                 )
@@ -64,58 +64,13 @@ def create_tts_tab():
                 # Voice selection with horizontal scrollable list
                 gr.Markdown("### Select a Voice Model")
 
-                # Create a grid of voice model cards
-                voice_models = list_voice_models()
+                # Create a grid of voice model cards using shared function
+                model_cards_container, _ = create_model_grid(selected_voice)
 
                 with gr.Row():
                     refresh_voices_btn = gr.Button(
                         "Refresh Voice Models 🔄", size="sm", min_width=50
                     )
-
-                # Create a container for the model cards
-                model_cards_container = gr.Column()
-
-                # Create the model cards
-                with model_cards_container:
-                    with gr.Row(equal_height=True):
-                        for model_name in voice_models:
-                            model = VoiceModel.from_name(model_name)
-                            if not model:
-                                continue
-
-                            with gr.Column(min_width=75, scale=1):
-                                # Combined image and button component
-                                with gr.Group(elem_classes=["model-card"]):
-                                    gr.Image(
-                                        value=model.image_path if model.has_image else None,
-                                        label=model_name,
-                                        show_label=False,
-                                        height=75,
-                                        width=75,
-                                        interactive=False,
-                                        elem_classes=["model-image"],
-                                    )
-                                    select_btn = gr.Button(
-                                        model_name,
-                                        size="sm",
-                                        min_width=75,
-                                        variant="secondary",
-                                        elem_classes=["model-button"],
-                                    )
-                                    select_btn.click(
-                                        fn=lambda x=model_name: x,
-                                        inputs=[],
-                                        outputs=[selected_voice],
-                                    )
-
-                                # Sample audio player below image+button
-                                if model.has_sample:
-                                    gr.Audio(
-                                        value=str(model.sample_path),
-                                        label="Sample",
-                                        show_label=True,
-                                        interactive=False,
-                                    )
 
                 # Voice modulation settings
                 gr.Markdown("### Voice Modulation")
@@ -148,7 +103,9 @@ def create_tts_tab():
                 }
 
                 # Send request to the synthesis endpoint
-                response = requests.post("http://localhost:8000/tts/synthesize", json=data)
+                response = requests.post(
+                    "http://localhost:8000/tts/synthesize", json=data
+                )
 
                 # Check if the request was successful
                 if response.status_code != 200:
