@@ -26,6 +26,8 @@ class VoiceModel:
     voice_path: Optional[Path] = None
     transcript_path: Optional[Path] = None
     preview_path: Optional[Path] = None
+    image_path: Optional[Path] = None
+    sample_path: Optional[Path] = None
     default_settings: Dict[str, Any] = field(
         default_factory=lambda: {"speed": 1.0, "pitch": 0.0}
     )
@@ -46,6 +48,17 @@ class VoiceModel:
     def has_preview(self) -> bool:
         """Check if the voice model has a preview file."""
         return self.preview_path is not None and self.preview_path.exists()
+
+    @property
+    def has_image(self) -> bool:
+        """Check if the voice model has an image file."""
+        print(f"Checking if {self.image_path} exists")
+        return self.image_path is not None and self.image_path.exists()
+
+    @property
+    def has_sample(self) -> bool:
+        """Check if the voice model has a sample audio file."""
+        return self.sample_path is not None and self.sample_path.exists()
 
     def get_transcript(self) -> str:
         """Get the transcript text from the model's transcript file."""
@@ -105,12 +118,15 @@ class VoiceModel:
     @classmethod
     def create_default(cls) -> "VoiceModel":
         """Create the default voice model instance."""
+        name = "default"
         return cls(
-            name="default",
+            name=name,
             description="Default voice provided by Fish Speech AI",
             voice_path=None,
             transcript_path=None,
             preview_path=None,
+            image_path= MODEL_DIR / name / f"{name}.png",
+            sample_path=None,
         )
 
     @classmethod
@@ -123,6 +139,8 @@ class VoiceModel:
         mp3_path = model_dir / f"{name}.mp3"
         txt_path = model_dir / f"{name}.txt"
         preview_path = model_dir / "preview.mp3"
+        image_path = model_dir / f"{name}.png"
+        sample_path = model_dir / "sample.mp3"
 
         if not (model_dir.exists() and mp3_path.exists() and txt_path.exists()):
             logger.warning(f"Voice model files not found for: {name}")
@@ -134,6 +152,8 @@ class VoiceModel:
             voice_path=mp3_path,
             transcript_path=txt_path,
             preview_path=preview_path if preview_path.exists() else None,
+            image_path=image_path if image_path.exists() else None,
+            sample_path=sample_path if sample_path.exists() else None,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -142,15 +162,20 @@ class VoiceModel:
             "name": self.name,
             "description": self.description,
             "voice_path": str(self.voice_path) if self.voice_path else None,
-            "transcript_path": (
-                str(self.transcript_path) if self.transcript_path else None
-            ),
+            "transcript_path": str(self.transcript_path) if self.transcript_path else None,
             "preview_path": str(self.preview_path) if self.preview_path else None,
+            "image_path": str(self.image_path) if self.image_path else None,
+            "sample_path": str(self.sample_path) if self.sample_path else None,
             "default_settings": self.default_settings,
         }
 
     def save(
-        self, source_mp3: Path, source_txt: Path, source_preview: Optional[Path] = None
+        self, 
+        source_mp3: Path, 
+        source_txt: Path, 
+        source_preview: Optional[Path] = None,
+        source_image: Optional[Path] = None,
+        source_sample: Optional[Path] = None
     ) -> bool:
         """Save the voice model files to the model directory."""
         if self.name == "default":
@@ -177,6 +202,16 @@ class VoiceModel:
                 if source_preview and source_preview.exists():
                     self.preview_path = model_dir / "preview.mp3"
                     shutil.copy2(source_preview, self.preview_path)
+
+                # Handle image file if provided
+                if source_image and source_image.exists():
+                    self.image_path = model_dir / f"{self.name}.png"
+                    shutil.copy2(source_image, self.image_path)
+
+                # Handle sample file if provided
+                if source_sample and source_sample.exists():
+                    self.sample_path = model_dir / "sample.mp3"
+                    shutil.copy2(source_sample, self.sample_path)
             else:
                 logger.error("Voice model paths not properly initialized")
                 return False
@@ -296,6 +331,8 @@ def add_voice_model(
         voice_path=MODEL_DIR / voice_name / f"{voice_name}.mp3",
         transcript_path=MODEL_DIR / voice_name / f"{voice_name}.txt",
         preview_path=MODEL_DIR / voice_name / "preview.mp3",
+        image_path=MODEL_DIR / voice_name / f"{voice_name}.png",
+        sample_path=MODEL_DIR / voice_name / "sample.mp3",
         default_settings=settings or {"speed": 1.0, "pitch": 0.0},
     )
 
