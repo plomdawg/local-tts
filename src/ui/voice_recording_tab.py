@@ -4,12 +4,13 @@ Voice Recording tab UI component.
 
 import gradio as gr
 from ui.utils import get_random_prompt, save_voice_model, format_status, DEFAULT_PROMPT
+from core.model_manager import VoiceModel
 
 
 def create_voice_recording_tab():
     """
     Create the Voice Cloning from Recording tab
-    
+
     Returns:
         dict: A dictionary of UI components
     """
@@ -52,9 +53,7 @@ def create_voice_recording_tab():
             )
 
     # Connect the random prompt button
-    random_prompt_btn.click(
-        fn=get_random_prompt, inputs=[], outputs=[recording_prompt]
-    )
+    random_prompt_btn.click(fn=get_random_prompt, inputs=[], outputs=[recording_prompt])
 
     # Connect the save voice button with status formatting
     save_voice_btn.click(
@@ -69,5 +68,5 @@ def create_voice_recording_tab():
         "recorded_audio": recorded_audio,
         "voice_name": voice_name,
         "save_voice_btn": save_voice_btn,
-        "voice_save_status": voice_save_status
-    } 
+        "voice_save_status": voice_save_status,
+    }

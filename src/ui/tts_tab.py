@@ -4,9 +4,9 @@ Text-to-Speech tab UI component.
 
 import gradio as gr
 import requests
-import os
+from pathlib import Path
 
-from ui.utils import get_available_voices
+from core.model_manager import list_voice_models
 
 
 def create_tts_tab():
@@ -38,7 +38,7 @@ def create_tts_tab():
 
             tts_voice = gr.Dropdown(
                 label="Voice",
-                choices=get_available_voices(),
+                choices=list_voice_models(),
                 value="default",
             )
 
@@ -96,7 +96,7 @@ def create_tts_tab():
             if cache_hit:
                 status += " (Loaded from cache)"
 
-            if audio_file and os.path.exists(audio_file):
+            if audio_file and Path(audio_file).exists():
                 return status, audio_file
             else:
                 return "Generated file not found.", None
@@ -106,7 +106,7 @@ def create_tts_tab():
 
     # Function to refresh the voices dropdown
     def refresh_voices():
-        return gr.Dropdown(choices=get_available_voices())
+        return gr.Dropdown(choices=list_voice_models())
 
     # Connect the buttons to their functions
     synthesize_btn.click(

@@ -3,12 +3,13 @@ Utility functions for the UI components.
 """
 
 import random
-import os
 import requests
 from datetime import datetime
-import shutil
-import gradio as gr
-import mutagen
+from pathlib import Path
+import tempfile
+
+from core.model_manager import VoiceModel, list_voice_models
+from core.config import MODEL_DIR
 
 
 def get_available_voices():
@@ -84,11 +85,6 @@ def save_voice_model(audio_file, prompt_text, name):
     Returns:
         str: Status message
     """
-    # Add debug logging
-    print(
-        f"Saving voice model - Audio file: {audio_file}, Size: {os.path.getsize(audio_file) if audio_file and os.path.exists(audio_file) else 'N/A'} bytes"
-    )
-
     # Validation checks with clear error messages
     if not audio_file:
         return "ERROR: Please record or upload an audio file first."
@@ -102,81 +98,41 @@ def save_voice_model(audio_file, prompt_text, name):
             "ERROR: Please transcribe the audio or provide a transcript before saving."
         )
 
-    # Check if the audio file exists and is not empty
-    try:
-        # Check if file exists
-        if not os.path.exists(audio_file):
-            return "ERROR: Audio file does not exist."
-
-        # Check if file is not empty
-        file_size = os.path.getsize(audio_file)
-        if file_size == 0:
-            return "ERROR: The recorded audio file is empty. Please record your voice again."
-
-        # For very small files, they are likely corrupted or too short to be useful
-        if file_size < 1000:  # Less than 1 KB
-            return "ERROR: The recorded audio is too short or possibly corrupted. Please record your voice again."
-
-        # Try to verify this is actually a valid audio file
-        try:
-            # Depending on the file type, try to open it to verify it's valid
-            if audio_file.endswith((".mp3", ".wav", ".m4a")):
-                try:
-                    audio = mutagen.File(audio_file)
-                    if audio is None:
-                        return "ERROR: The audio file appears to be corrupted. Please record your voice again."
-                except ImportError:
-                    # If mutagen is not available, we'll just check file size as we did above
-                    pass
-        except Exception as e:
-            print(f"Warning: Could not verify audio file validity: {e}")
-            # We'll still try to proceed if this check fails
-
-    except Exception as e:
-        return f"ERROR: Failed to validate audio file: {str(e)}"
+    # Validate the audio file
+    is_valid, error_msg = VoiceModel.validate_audio_file(audio_file)
+    if not is_valid:
+        return f"ERROR: {error_msg}"
 
     try:
-        # Create a directory for the voice model
-        voice_dir = os.path.join("models", name)
-        os.makedirs(voice_dir, exist_ok=True)
+        # Create a temporary directory for our files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
 
-        # Save the audio file and prompt text
-        audio_path = os.path.join(voice_dir, f"{name}.mp3")
-        text_path = os.path.join(voice_dir, f"{name}.txt")
+            # Create the transcript file in the temp directory
+            temp_txt = temp_dir / f"{name}.txt"
+            with open(temp_txt, "w", encoding="utf-8") as f:
+                f.write(prompt_text)
 
-        shutil.copy2(audio_file, audio_path)
+            # Create and save the voice model
+            model = VoiceModel(
+                name=name,
+                description=f"Voice model for {name}",
+                voice_path=Path(audio_file),  # This will be the source path
+                transcript_path=temp_txt,  # This will be the source path
+            )
 
-        # Clean up the transcript text - sometimes it might be a tuple with a file path
-        # This happens when transcript comes from transcribe_audio function
-        if isinstance(prompt_text, str):
-            # Check if the text looks like a tuple representation
-            if prompt_text.startswith("(") and "transcripts\\" in prompt_text:
-                # Extract just the transcript text from the tuple representation
-                try:
-                    # Find the first quote and the last quote before the file path
-                    first_quote = prompt_text.find('"')
-                    if first_quote >= 0:
-                        last_quote_pos = prompt_text.rfind('"', first_quote + 1)
-                        if last_quote_pos > first_quote:
-                            clean_text = prompt_text[first_quote + 1 : last_quote_pos]
-                        else:
-                            clean_text = prompt_text
-                    else:
-                        clean_text = prompt_text
-                except:
-                    clean_text = prompt_text
+            # Set the target paths for saving
+            model.voice_path = MODEL_DIR / name / f"{name}.mp3"
+            model.transcript_path = MODEL_DIR / name / f"{name}.txt"
+
+            if model.save(Path(audio_file), temp_txt):
+                return f"SUCCESS: Voice model '{name}' saved successfully."
             else:
-                clean_text = prompt_text
-        else:
-            clean_text = str(prompt_text)
-
-        # Save the cleaned prompt text
-        with open(text_path, "w", encoding="utf-8") as f:
-            f.write(clean_text)
-
-        return f"SUCCESS: Voice model '{name}' saved successfully. Files saved to {voice_dir}"
+                return "ERROR: Failed to save voice model."
 
     except Exception as e:
+        import traceback
+
         return f"ERROR: Failed to save voice model: {str(e)}"
 
 
