@@ -65,6 +65,24 @@ def create_voice_management_tab():
                 update_model_btn = gr.Button("Update Model", variant="primary")
                 status_output = gr.Textbox(label="Status", interactive=False)
 
+        # Sample audio section
+        gr.Markdown("## Sample Audio")
+        with gr.Row():
+            with gr.Column(scale=1):
+                sample_audio = gr.Audio(
+                    label="Current Sample",
+                    type="filepath",
+                    interactive=False,
+                )
+
+                new_sample = gr.Audio(
+                    label="Upload New Sample",
+                    type="filepath",
+                    interactive=True,
+                )
+
+                update_sample_btn = gr.Button("Update Sample", variant="primary")
+
         def update_model_image(model_name, new_image_path):
             if not model_name or not new_image_path:
                 return "Please select a model and provide a new image."
@@ -96,6 +114,18 @@ def create_voice_management_tab():
                 return f"Model '{model_name}' updated successfully"
             return f"Failed to update model '{model_name}'"
 
+        def update_sample_audio(model_name, new_sample_path):
+            if not model_name or not new_sample_path:
+                return "Please select a model and provide a new sample audio."
+
+            model = VoiceModel.from_name(model_name)
+            if not model:
+                return "Model not found."
+
+            if model.update_sample(new_sample_path):
+                return f"Sample audio updated for model '{model_name}'"
+            return f"Failed to update sample audio for model '{model_name}'"
+
         # Connect the buttons
         refresh_models_btn.click(
             fn=lambda: gr.update(),
@@ -106,7 +136,13 @@ def create_voice_management_tab():
         selected_model.change(
             fn=load_model_details,
             inputs=[selected_model],
-            outputs=[model_image, model_name, model_transcript, new_image],
+            outputs=[
+                model_image,
+                model_name,
+                model_transcript,
+                new_image,
+                sample_audio,
+            ],
         )
 
         update_image_btn.click(
@@ -118,6 +154,12 @@ def create_voice_management_tab():
         update_model_btn.click(
             fn=update_model_details,
             inputs=[selected_model, model_name, model_transcript],
+            outputs=[status_output],
+        )
+
+        update_sample_btn.click(
+            fn=update_sample_audio,
+            inputs=[selected_model, new_sample],
             outputs=[status_output],
         )
 

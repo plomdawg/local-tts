@@ -200,20 +200,21 @@ def load_model_details(model_name):
         model_name: Name of the model to load
 
     Returns:
-        tuple: (image_path, name, transcript, image_path)
+        tuple: (image_path, name, transcript, image_path, sample_path)
     """
     if not model_name:
-        return None, "", "", None
+        return None, "", "", None, None
 
     model = VoiceModel.from_name(model_name)
     if not model:
-        return None, "", "", None
+        return None, "", "", None, None
 
     return (
         model.image_path if model.image_path.exists() else None,
         model.name,
         model.transcript if model.transcript_path.exists() else "",
         model.image_path if model.image_path.exists() else None,
+        model.sample_path if model.sample_path.exists() else None,
     )
 
 

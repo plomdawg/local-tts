@@ -199,6 +199,31 @@ class VoiceModel:
             logger.error(f"Error updating model transcript: {e}")
             return False
 
+    def update_sample(self, new_sample_path: Union[str, Path]) -> bool:
+        """Update the model's sample audio file."""
+        if self.name == "default":
+            logger.warning("Cannot modify the default voice model")
+            return False
+
+        try:
+            new_sample_path = Path(new_sample_path)
+            if not new_sample_path.exists():
+                logger.error(f"New sample file not found: {new_sample_path}")
+                return False
+
+            # Ensure model directory exists
+            self.model_dir.mkdir(exist_ok=True)
+
+            # Copy file
+            shutil.copy2(new_sample_path, self.sample_path)
+
+            logger.info(f"Updated sample audio for voice model '{self.name}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating model sample: {e}")
+            return False
+
     @classmethod
     def create_default(cls) -> "VoiceModel":
         """Create the default voice model instance."""
@@ -237,10 +262,7 @@ class VoiceModel:
         }
 
     def save(
-        self, 
-        source_mp3: Path, 
-        source_txt: Path, 
-        source_image: Optional[Path] = None
+        self, source_mp3: Path, source_txt: Path, source_image: Optional[Path] = None
     ) -> bool:
         """Save the voice model files to the model directory."""
         if self.name == "default":
