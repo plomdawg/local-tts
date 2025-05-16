@@ -134,7 +134,7 @@ def create_tts_tab():
         def update_selected_voice(voice_name):
             model = VoiceModel.from_name(voice_name)
             if model:
-                return (model.image_path if model.has_image else None, model.name)
+                return (model.image_path if model.image_path.exists() else None, model.name)
             return None, "Default Voice"
 
         # Function to refresh the voices grid

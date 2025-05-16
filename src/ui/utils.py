@@ -165,7 +165,9 @@ def create_model_grid(selected_voice_state=None):
                     # Combined image and button component
                     with gr.Group(elem_classes=["model-card"]):
                         gr.Image(
-                            value=model.image_path if model.has_image else None,
+                            value=(
+                                model.image_path if model.image_path.exists() else None
+                            ),
                             label=model_name,
                             show_label=False,
                             height=75,
@@ -188,13 +190,47 @@ def create_model_grid(selected_voice_state=None):
                             )
 
                     # Sample audio player below image+button
-                    if model.has_sample:
-                        gr.Audio(
-                            value=str(model.sample_path),
-                            label="Sample",
-                            show_label=True,
-                            interactive=False,
-                        )
+                    if model.sample_path.exists():
+                        print(f"{model.name} sample path: {model.sample_path}")
+                        with gr.Group(elem_classes=["sample-player"]):
+                            audio = gr.Audio(
+                                value=str(model.sample_path),
+                                label=None,
+                                show_label=False,
+                                interactive=False,
+                                elem_classes=["hidden-audio"],
+                                format="mp3",
+                                type="filepath",
+                                visible=False,
+                            )
+                            play_btn = gr.Button(
+                                "▶️",
+                                size="sm",
+                                min_width=30,
+                                variant="secondary",
+                                elem_classes=["play-button"],
+                            )
+
+                            def play_audio():
+                                if (
+                                    not model.sample_path
+                                    or not Path(model.sample_path).exists()
+                                ):
+                                    print(
+                                        f"Error: Audio file not found at {model.sample_path}"
+                                    )
+                                    return gr.update()
+
+                                print(f"Playing audio from: {model.sample_path}")
+                                return gr.update(
+                                    value=str(model.sample_path), autoplay=True
+                                )
+
+                            play_btn.click(
+                                fn=play_audio,
+                                inputs=[],
+                                outputs=[audio],
+                            )
 
     return model_cards_container, selected_voice_state
 
@@ -217,10 +253,10 @@ def load_model_details(model_name):
         return None, "", "", None
 
     return (
-        model.image_path if model.has_image else None,
+        model.image_path if model.image_path.exists() else None,
         model.name,
-        model.transcript if model.has_transcript else "",
-        model.image_path if model.has_image else None,
+        model.transcript if model.transcript_path.exists() else "",
+        model.image_path if model.image_path.exists() else None,
     )
 
 
@@ -277,7 +313,7 @@ def update_model_details(model_name, new_name, new_transcript):
 
         # Update transcript if changed
         if new_transcript:
-            with open(model.text_path, "w", encoding="utf-8") as f:
+            with open(model.transcript_path, "w", encoding="utf-8") as f:
                 f.write(new_transcript)
 
         return f"Model '{model_name}' updated successfully"
