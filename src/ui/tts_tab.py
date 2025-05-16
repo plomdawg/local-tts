@@ -40,6 +40,13 @@ def create_tts_tab():
                         interactive=False,
                     )
 
+                # Add voice sample player
+                voice_sample = gr.Audio(
+                    label=f"Voice Sample",
+                    interactive=False,
+                    visible=True,
+                )
+
                 gr.Markdown("## Text Input")
                 tts_text = gr.Textbox(
                     label="Text to Synthesize",
@@ -132,10 +139,27 @@ def create_tts_tab():
 
         # Function to update selected voice display
         def update_selected_voice(voice_name):
+            """
+            Update the selected voice display with the given voice name.
+
+            Args:
+                voice_name: Name of the selected voice
+
+            Returns:
+                tuple: (image_path, name, sample_path)
+            """
+            if not voice_name or voice_name == "default":
+                return None, "Default Voice", None
+
             model = VoiceModel.from_name(voice_name)
-            if model:
-                return (model.image_path if model.image_path.exists() else None, model.name)
-            return None, "Default Voice"
+            if not model:
+                return None, "Voice not found", None
+
+            return (
+                model.image_path if model.image_path.exists() else None,
+                model.name,
+                str(model.sample_path) if model.sample_path.exists() else None,
+            )
 
         # Function to refresh the voices grid
         def refresh_voices():
@@ -157,14 +181,14 @@ def create_tts_tab():
         selected_voice.change(
             fn=update_selected_voice,
             inputs=[selected_voice],
-            outputs=[selected_voice_image, selected_voice_name],
+            outputs=[selected_voice_image, selected_voice_name, voice_sample],
         )
 
         # Update selected voice display when the page loads
         tts_tab.load(
             fn=lambda: update_selected_voice("default"),
             inputs=[],
-            outputs=[selected_voice_image, selected_voice_name],
+            outputs=[selected_voice_image, selected_voice_name, voice_sample],
         )
 
     return (

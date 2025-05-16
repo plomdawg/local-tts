@@ -189,49 +189,6 @@ def create_model_grid(selected_voice_state=None):
                                 outputs=[selected_voice_state],
                             )
 
-                    # Sample audio player below image+button
-                    if model.sample_path.exists():
-                        print(f"{model.name} sample path: {model.sample_path}")
-                        with gr.Group(elem_classes=["sample-player"]):
-                            audio = gr.Audio(
-                                value=str(model.sample_path),
-                                label=None,
-                                show_label=False,
-                                interactive=False,
-                                elem_classes=["hidden-audio"],
-                                format="mp3",
-                                type="filepath",
-                                visible=False,
-                            )
-                            play_btn = gr.Button(
-                                "▶️",
-                                size="sm",
-                                min_width=30,
-                                variant="secondary",
-                                elem_classes=["play-button"],
-                            )
-
-                            def play_audio():
-                                if (
-                                    not model.sample_path
-                                    or not Path(model.sample_path).exists()
-                                ):
-                                    print(
-                                        f"Error: Audio file not found at {model.sample_path}"
-                                    )
-                                    return gr.update()
-
-                                print(f"Playing audio from: {model.sample_path}")
-                                return gr.update(
-                                    value=str(model.sample_path), autoplay=True
-                                )
-
-                            play_btn.click(
-                                fn=play_audio,
-                                inputs=[],
-                                outputs=[audio],
-                            )
-
     return model_cards_container, selected_voice_state
 
 
