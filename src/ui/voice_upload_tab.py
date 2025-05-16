@@ -82,8 +82,7 @@ def create_voice_upload_tab():
 
                 # Save the transcription
                 transcription = response.json().get("text", "")
-                with open(model.text_path, "w", encoding="utf-8") as f:
-                    f.write(transcription)
+                model.update_transcript(transcription)
 
                 return f"Voice model '{name}' created successfully!"
 
