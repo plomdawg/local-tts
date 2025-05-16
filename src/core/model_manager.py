@@ -22,7 +22,6 @@ class VoiceModel:
     """Represents a voice model with its associated files and metadata."""
 
     name: str
-    description: str
     default_settings: Dict[str, Any] = field(
         default_factory=lambda: {"speed": 1.0, "pitch": 0.0}
     )
@@ -229,7 +228,6 @@ class VoiceModel:
         """Create the default voice model instance."""
         return cls(
             name="default",
-            description="Default voice provided by Fish Speech AI",
         )
 
     @classmethod
@@ -240,7 +238,6 @@ class VoiceModel:
 
         model = cls(
             name=name,
-            description=f"Voice model for {name}",
         )
 
         if not model.exists:
@@ -253,7 +250,6 @@ class VoiceModel:
         """Convert the voice model to a dictionary representation."""
         return {
             "name": self.name,
-            "description": self.description,
             "voice_path": str(self.voice_path),
             "transcript_path": str(self.transcript_path),
             "image_path": str(self.image_path),
@@ -395,21 +391,30 @@ def get_voice_model_info(voice_name: str) -> Optional[Dict[str, Any]]:
 
 def add_voice_model(
     voice_name: str,
-    description: str,
     voice_path: str,
     settings: Optional[Dict[str, Any]] = None,
 ) -> bool:
-    """Add a new voice model by copying audio and transcript files."""
-    model = VoiceModel(
-        name=voice_name,
-        description=description,
-        default_settings=settings or {"speed": 1.0, "pitch": 0.0},
-    )
+    """Add a new voice model."""
+    try:
+        # Create model directory
+        model_dir = MODEL_DIR / voice_name
+        model_dir.mkdir(exist_ok=True)
 
-    source_mp3 = Path(voice_path)
-    source_txt = source_mp3.with_suffix(".txt")
+        # Copy voice file
+        shutil.copy2(voice_path, model_dir / f"{voice_name}.mp3")
 
-    return model.save(source_mp3, source_txt)
+        # Create model instance
+        model = VoiceModel(
+            name=voice_name,
+            default_settings=settings or {},
+        )
+
+        logger.info(f"Added voice model: {voice_name}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error adding voice model: {e}")
+        return False
 
 
 def remove_voice_model(voice_name: str) -> bool:

@@ -118,7 +118,6 @@ def save_voice_model(audio_file, prompt_text, name):
             # Create and save the voice model
             model = VoiceModel(
                 name=name,
-                description=f"Voice model for {name}",
                 voice_path=Path(audio_file),  # This will be the source path
                 transcript_path=temp_txt,  # This will be the source path
             )
