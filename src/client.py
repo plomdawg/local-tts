@@ -23,11 +23,7 @@ def create_ui():
         with gr.Tab("TTS"):
             create_tts_tab()
 
-        # Voice Cloning from Recording Tab
-        #with gr.Tab("Voice Cloning from Recording"):
-        #    create_voice_recording_tab()
-
-        # Voice Cloning from MP3 Tab
+        # Voice Cloning Tab
         with gr.Tab("Cloning"):
             create_voice_upload_tab()
 
