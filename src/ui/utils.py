@@ -174,6 +174,8 @@ def create_model_grid(selected_voice_state=None):
                             width=75,
                             interactive=False,
                             elem_classes=["model-image"],
+                            show_download_button=False,
+                            show_fullscreen_button=False,
                         )
                         select_btn = gr.Button(
                             model_name,

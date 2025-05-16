@@ -32,6 +32,8 @@ def create_tts_tab():
                         height=100,
                         width=100,
                         interactive=False,
+                        show_download_button=False,
+                        show_fullscreen_button=False,
                     )
                     selected_voice_name = gr.Textbox(
                         scale=2,

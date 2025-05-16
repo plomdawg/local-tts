@@ -36,6 +36,8 @@ def create_voice_management_tab():
                     type="filepath",
                     height=200,
                     width=200,
+                    show_download_button=False,
+                    show_fullscreen_button=False,
                 )
 
                 # Image upload
