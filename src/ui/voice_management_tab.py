@@ -5,7 +5,7 @@ Voice management tab UI component.
 import gradio as gr
 
 from core.model_manager import VoiceModel
-from ui.utils import create_model_grid
+from ui.utils import create_model_grid, load_model_details
 
 
 def create_voice_management_tab():
@@ -64,21 +64,6 @@ def create_voice_management_tab():
 
                 update_model_btn = gr.Button("Update Model", variant="primary")
                 status_output = gr.Textbox(label="Status", interactive=False)
-
-        def load_model_details(model_name):
-            if not model_name:
-                return None, "", "", None
-
-            model = VoiceModel.from_name(model_name)
-            if not model:
-                return None, "", "", None
-
-            return (
-                model.image_path if model.has_image else None,
-                model.name,
-                model.transcript,
-                model.image_path if model.has_image else None,
-            )
 
         def update_model_image(model_name, new_image_path):
             if not model_name or not new_image_path:
